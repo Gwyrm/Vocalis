@@ -14,6 +14,7 @@ import {
   ListItemText,
   ListItemIcon,
   Chip,
+  Avatar,
 } from '@mui/material';
 import {
   Scanner,
@@ -23,6 +24,10 @@ import {
   History,
   Description,
   AccessTime,
+  LocalHospital,
+  TrendingUp,
+  RecordVoiceOver,
+  AutoAwesome,
 } from '@mui/icons-material';
 import { useUser } from '../contexts/UserContext';
 import { format } from 'date-fns';
@@ -33,29 +38,29 @@ const Dashboard = () => {
 
   const reportTypes = [
     {
-      type: 'scanner',
+      id: 'scanner',
       title: 'Scanner',
-      description: 'Créer un compte-rendu de scanner (CT)',
       icon: <Scanner sx={{ fontSize: 48 }} />,
-      color: '#1976d2',
-      path: '/create/scanner'
+      description: 'Création de compte-rendu de scanner',
+      color: '#2196f3',
+      stats: '12 cette semaine',
     },
     {
-      type: 'mri',
+      id: 'mri',
       title: 'IRM',
-      description: 'Créer un compte-rendu d\'IRM',
       icon: <MedicalServices sx={{ fontSize: 48 }} />,
-      color: '#9c27b0',
-      path: '/create/mri'
+      description: 'Création de compte-rendu d\'IRM',
+      color: '#4caf50',
+      stats: '8 cette semaine',
     },
     {
-      type: 'echo',
+      id: 'echo',
       title: 'Échographie',
-      description: 'Créer un compte-rendu d\'échographie',
-      icon: <MonitorHeart sx={{ fontSize: 48 }} />,
-      color: '#f57c00',
-      path: '/create/echo'
-    }
+      icon: <LocalHospital sx={{ fontSize: 48 }} />,
+      description: 'Création de compte-rendu d\'échographie',
+      color: '#ff9800',
+      stats: '15 cette semaine',
+    },
   ];
 
   // Mock recent reports for demo
@@ -122,152 +127,147 @@ const Dashboard = () => {
   };
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Tableau de bord
-      </Typography>
-      
-      {currentUser && (
-        <Typography variant="h6" color="text.secondary" gutterBottom>
-          Bienvenue, {currentUser.name}
+    <Box sx={{ p: 3 }}>
+      {/* Header */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          Tableau de Bord
         </Typography>
-      )}
+        <Typography variant="body1" color="text.secondary" gutterBottom>
+          Bienvenue, Dr. {currentUser?.name}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+          <Chip
+            icon={<RecordVoiceOver />}
+            label="Interface vocale activée"
+            color="primary"
+            variant="outlined"
+          />
+          <Chip
+            icon={<AutoAwesome />}
+            label="IA intégrée"
+            color="secondary"
+            variant="outlined"
+          />
+        </Box>
+      </Box>
 
-      <Grid container spacing={3}>
-        {/* Quick Actions */}
-        <Grid item xs={12}>
-          <Typography variant="h5" gutterBottom sx={{ mt: 2 }}>
-            Créer un nouveau rapport
-          </Typography>
+      {/* Quick Stats */}
+      <Grid container spacing={2} sx={{ mb: 4 }}>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ bgcolor: 'primary.light', color: 'primary.contrastText' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="h6">Rapports aujourd'hui</Typography>
+                  <Typography variant="h3">7</Typography>
+                </Box>
+                <TrendingUp sx={{ fontSize: 48, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-        
-        {reportTypes.map((reportType) => (
-          <Grid item xs={12} md={4} key={reportType.type}>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ bgcolor: 'secondary.light', color: 'secondary.contrastText' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="h6">Cette semaine</Typography>
+                  <Typography variant="h3">35</Typography>
+                </Box>
+                <Description sx={{ fontSize: 48, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid item xs={12} md={4}>
+          <Card sx={{ bgcolor: 'success.light', color: 'success.contrastText' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Box>
+                  <Typography variant="h6">Temps moyen</Typography>
+                  <Typography variant="h3">4 min</Typography>
+                </Box>
+                <RecordVoiceOver sx={{ fontSize: 48, opacity: 0.7 }} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Report Types */}
+      <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+        Créer un nouveau compte-rendu
+      </Typography>
+      <Grid container spacing={3}>
+        {reportTypes.map((type) => (
+          <Grid item xs={12} md={4} key={type.id}>
             <Card 
               sx={{ 
                 height: '100%',
-                cursor: 'pointer',
-                transition: 'transform 0.2s, box-shadow 0.2s',
+                transition: 'all 0.3s',
                 '&:hover': {
                   transform: 'translateY(-4px)',
-                  boxShadow: 4,
+                  boxShadow: 6,
                 }
               }}
-              onClick={() => navigate(reportType.path)}
             >
-              <CardContent sx={{ textAlign: 'center', pb: 1 }}>
-                <Box sx={{ color: reportType.color, mb: 2 }}>
-                  {reportType.icon}
-                </Box>
-                <Typography variant="h6" component="h2" gutterBottom>
-                  {reportType.title}
+              <CardContent sx={{ textAlign: 'center', py: 4 }}>
+                <Avatar
+                  sx={{
+                    bgcolor: type.color,
+                    width: 80,
+                    height: 80,
+                    mx: 'auto',
+                    mb: 2,
+                  }}
+                >
+                  {type.icon}
+                </Avatar>
+                <Typography variant="h6" gutterBottom>
+                  {type.title}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {reportType.description}
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  {type.description}
+                </Typography>
+                <Chip
+                  label="Dictée vocale"
+                  size="small"
+                  icon={<RecordVoiceOver />}
+                  color="primary"
+                  sx={{ mt: 1 }}
+                />
+                <Typography variant="caption" display="block" sx={{ mt: 2 }}>
+                  {type.stats}
                 </Typography>
               </CardContent>
-              <CardActions sx={{ justifyContent: 'center', pt: 0 }}>
-                <Button 
-                  size="medium" 
-                  startIcon={<Add />}
-                  sx={{ color: reportType.color }}
+              <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate(`/new-report/${type.id}`)}
+                  startIcon={<RecordVoiceOver />}
                 >
-                  Créer
+                  Commencer la dictée
                 </Button>
               </CardActions>
             </Card>
           </Grid>
         ))}
-
-        {/* Recent Reports */}
-        <Grid item xs={12} md={8}>
-          <Paper sx={{ p: 2, mt: 3 }}>
-            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
-              <History sx={{ mr: 1 }} />
-              Rapports récents
-            </Typography>
-            <List>
-              {recentReports.map((report) => (
-                <ListItem 
-                  key={report.id}
-                  sx={{ 
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    mb: 1,
-                    cursor: 'pointer',
-                    '&:hover': {
-                      backgroundColor: 'action.hover'
-                    }
-                  }}
-                >
-                  <ListItemIcon>
-                    {getReportIcon(report.type)}
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="subtitle1">
-                          {report.patientName}
-                        </Typography>
-                        <Chip 
-                          label={getStatusLabel(report.status)}
-                          color={getStatusColor(report.status)}
-                          size="small"
-                        />
-                      </Box>
-                    }
-                    secondary={
-                      <Box>
-                        <Typography variant="body2" color="text.secondary">
-                          {report.examType}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                          <AccessTime sx={{ fontSize: 16, mr: 0.5 }} />
-                          <Typography variant="caption" color="text.secondary">
-                            {format(report.date, 'dd MMMM yyyy')}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    }
-                  />
-                </ListItem>
-              ))}
-            </List>
-            <Box sx={{ textAlign: 'center', mt: 2 }}>
-              <Button 
-                variant="outlined" 
-                onClick={() => navigate('/history')}
-              >
-                Voir tous les rapports
-              </Button>
-            </Box>
-          </Paper>
-        </Grid>
-
-        {/* Quick Stats */}
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2, mt: 3 }}>
-            <Typography variant="h6" gutterBottom>
-              Statistiques
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2">Rapports ce mois:</Typography>
-                <Typography variant="h6" color="primary">12</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2">Brouillons:</Typography>
-                <Typography variant="h6" color="warning.main">3</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography variant="body2">Terminés:</Typography>
-                <Typography variant="h6" color="success.main">9</Typography>
-              </Box>
-            </Box>
-          </Paper>
-        </Grid>
       </Grid>
+
+      {/* Recent Activity */}
+      <Box sx={{ mt: 4 }}>
+        <Typography variant="h5" gutterBottom>
+          Activité récente
+        </Typography>
+        <Card>
+          <CardContent>
+            <Typography variant="body2" color="text.secondary">
+              Les rapports récents apparaîtront ici...
+            </Typography>
+          </CardContent>
+        </Card>
+      </Box>
     </Box>
   );
 };

@@ -1,258 +1,192 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import frLocale from 'date-fns/locale/fr';
+
+// Context
+import { UserProvider } from './contexts/UserContext';
+
+// Layout
 import {
   AppBar,
   Toolbar,
   Typography,
   Container,
   Box,
-  Drawer,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   IconButton,
   Menu,
   MenuItem,
   Avatar,
+  Chip,
 } from '@mui/material';
 import {
-  Menu as MenuIcon,
-  Scanner,
-  MedicalServices,
-  MonitorHeart,
-  Person,
-  ExitToApp,
-  Add,
-  History,
+  AccountCircle,
+  Logout,
+  RecordVoiceOver,
+  AutoAwesome,
 } from '@mui/icons-material';
 
+// Components
 import Dashboard from './components/Dashboard';
-import ReportCreator from './components/ReportCreator';
+import VoiceReportCreator from './components/VoiceReportCreator';
 import ReportHistory from './components/ReportHistory';
 import UserProfile from './components/UserProfile';
-import { UserProvider } from './contexts/UserContext';
 
-const drawerWidth = 240;
+// Create French theme
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: '#1976d2',
+    },
+    secondary: {
+      main: '#dc004e',
+    },
+    background: {
+      default: '#f5f5f5',
+    },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    h4: {
+      fontWeight: 600,
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: 'none',
+        },
+      },
+    },
+  },
+});
 
 function App() {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const [anchorEl, setAnchorEl] = React.useState(null);
 
-  useEffect(() => {
-    // Initialize with a default user
-    const defaultUser = {
-      id: '1',
-      name: 'Dr. Martin Dupont',
-      specialty: 'Radiologie',
-      hospital: 'CHU de Paris',
-      email: 'martin.dupont@chu-paris.fr'
-    };
-    setCurrentUser(defaultUser);
-  }, []);
-
-  const menuItems = [
-    { text: 'Tableau de bord', icon: <MonitorHeart />, path: '/' },
-    { text: 'Nouveau rapport', icon: <Add />, path: '/create' },
-    { text: 'Historique', icon: <History />, path: '/history' },
-    { text: 'Profil', icon: <Person />, path: '/profile' },
-  ];
-
-  const reportTypes = [
-    { text: 'Scanner', icon: <Scanner />, path: '/create/scanner', type: 'scanner' },
-    { text: 'IRM', icon: <MedicalServices />, path: '/create/mri', type: 'mri' },
-    { text: 'Échographie', icon: <MonitorHeart />, path: '/create/echo', type: 'echo' },
-  ];
-
-  const handleDrawerToggle = () => {
-    setDrawerOpen(!drawerOpen);
-  };
-
-  const handleProfileMenuOpen = (event) => {
+  const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
   };
 
-  const handleProfileMenuClose = () => {
+  const handleClose = () => {
     setAnchorEl(null);
   };
-
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setAnchorEl(null);
-    navigate('/');
-  };
-
-  const drawer = (
-    <Box>
-      <Toolbar>
-        <Typography variant="h6" noWrap component="div">
-          Vocalis
-        </Typography>
-      </Toolbar>
-      <List>
-        {menuItems.map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => {
-                navigate(item.path);
-                setDrawerOpen(false);
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
-      
-      {location.pathname === '/create' && (
-        <>
-          <Typography variant="subtitle2" sx={{ px: 2, py: 1, color: 'text.secondary' }}>
-            Types de rapports
-          </Typography>
-          <List>
-            {reportTypes.map((item) => (
-              <ListItem key={item.text} disablePadding>
-                <ListItemButton
-                  onClick={() => {
-                    navigate(item.path);
-                    setDrawerOpen(false);
-                  }}
-                >
-                  <ListItemIcon>{item.icon}</ListItemIcon>
-                  <ListItemText primary={item.text} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        </>
-      )}
-    </Box>
-  );
 
   return (
-    <UserProvider value={{ currentUser, setCurrentUser }}>
-      <Box sx={{ display: 'flex' }}>
-        <AppBar
-          position="fixed"
-          sx={{
-            width: { sm: `calc(100% - ${drawerWidth}px)` },
-            ml: { sm: `${drawerWidth}px` },
-          }}
-        >
-          <Toolbar>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2, display: { sm: 'none' } }}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
-              Vocalis - Dictée de Comptes-Rendus Médicaux
-            </Typography>
-            {currentUser && (
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                <Typography variant="body2" sx={{ mr: 2 }}>
-                  {currentUser.name}
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={frLocale}>
+        <UserProvider>
+          <Router>
+            <Box sx={{ flexGrow: 1 }}>
+              <AppBar position="fixed" elevation={2}>
+                <Toolbar>
+                  <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+                    Vocalis - Système de Dictée Médicale
+                  </Typography>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Chip
+                      icon={<RecordVoiceOver />}
+                      label="Dictée vocale"
+                      color="primary"
+                      variant="outlined"
+                      sx={{ 
+                        color: 'white',
+                        borderColor: 'rgba(255,255,255,0.5)',
+                        '& .MuiChip-icon': { color: 'white' }
+                      }}
+                    />
+                    <Chip
+                      icon={<AutoAwesome />}
+                      label="IA"
+                      color="secondary"
+                      variant="outlined"
+                      sx={{ 
+                        color: 'white',
+                        borderColor: 'rgba(255,255,255,0.5)',
+                        '& .MuiChip-icon': { color: 'white' }
+                      }}
+                    />
+                    
+                    <IconButton
+                      size="large"
+                      aria-label="compte utilisateur"
+                      aria-controls="menu-appbar"
+                      aria-haspopup="true"
+                      onClick={handleMenu}
+                      color="inherit"
+                    >
+                      <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                        <AccountCircle />
+                      </Avatar>
+                    </IconButton>
+                    <Menu
+                      id="menu-appbar"
+                      anchorEl={anchorEl}
+                      anchorOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                      }}
+                      keepMounted
+                      transformOrigin={{
+                        vertical: 'top',
+                        horizontal: 'right',
+                      }}
+                      open={Boolean(anchorEl)}
+                      onClose={handleClose}
+                    >
+                      <MenuItem onClick={handleClose}>
+                        <AccountCircle sx={{ mr: 1 }} />
+                        Profil
+                      </MenuItem>
+                      <MenuItem onClick={handleClose}>
+                        <Logout sx={{ mr: 1 }} />
+                        Déconnexion
+                      </MenuItem>
+                    </Menu>
+                  </Box>
+                </Toolbar>
+              </AppBar>
+              
+              <Toolbar /> {/* Spacer for fixed AppBar */}
+              
+              <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/new-report/:reportType" element={<VoiceReportCreator />} />
+                  <Route path="/history" element={<ReportHistory />} />
+                  <Route path="/profile" element={<UserProfile />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Container>
+              
+              <Box
+                component="footer"
+                sx={{
+                  py: 3,
+                  px: 2,
+                  mt: 'auto',
+                  backgroundColor: (theme) =>
+                    theme.palette.mode === 'light'
+                      ? theme.palette.grey[200]
+                      : theme.palette.grey[800],
+                  textAlign: 'center',
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  © 2024 Vocalis - Système de Dictée Médicale avec IA
                 </Typography>
-                <IconButton
-                  size="large"
-                  aria-label="account of current user"
-                  aria-controls="profile-menu"
-                  aria-haspopup="true"
-                  onClick={handleProfileMenuOpen}
-                  color="inherit"
-                >
-                  <Avatar sx={{ width: 32, height: 32 }}>
-                    {currentUser.name.charAt(0)}
-                  </Avatar>
-                </IconButton>
-                <Menu
-                  id="profile-menu"
-                  anchorEl={anchorEl}
-                  open={Boolean(anchorEl)}
-                  onClose={handleProfileMenuClose}
-                  onClick={handleProfileMenuClose}
-                >
-                  <MenuItem onClick={() => navigate('/profile')}>
-                    <ListItemIcon>
-                      <Person />
-                    </ListItemIcon>
-                    Profil
-                  </MenuItem>
-                  <MenuItem onClick={handleLogout}>
-                    <ListItemIcon>
-                      <ExitToApp />
-                    </ListItemIcon>
-                    Déconnexion
-                  </MenuItem>
-                </Menu>
               </Box>
-            )}
-          </Toolbar>
-        </AppBar>
-
-        <Box
-          component="nav"
-          sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
-        >
-          <Drawer
-            variant="temporary"
-            open={drawerOpen}
-            onClose={handleDrawerToggle}
-            ModalProps={{
-              keepMounted: true,
-            }}
-            sx={{
-              display: { xs: 'block', sm: 'none' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-          >
-            {drawer}
-          </Drawer>
-          <Drawer
-            variant="permanent"
-            sx={{
-              display: { xs: 'none', sm: 'block' },
-              '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
-            }}
-            open
-          >
-            {drawer}
-          </Drawer>
-        </Box>
-
-        <Box
-          component="main"
-          sx={{
-            flexGrow: 1,
-            p: 3,
-            width: { sm: `calc(100% - ${drawerWidth}px)` },
-          }}
-        >
-          <Toolbar />
-          <Container maxWidth="lg">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/create" element={<Dashboard />} />
-              <Route path="/create/scanner" element={<ReportCreator reportType="scanner" />} />
-              <Route path="/create/mri" element={<ReportCreator reportType="mri" />} />
-              <Route path="/create/echo" element={<ReportCreator reportType="echo" />} />
-              <Route path="/history" element={<ReportHistory />} />
-              <Route path="/profile" element={<UserProfile />} />
-            </Routes>
-          </Container>
-        </Box>
-      </Box>
-    </UserProvider>
+            </Box>
+          </Router>
+        </UserProvider>
+      </LocalizationProvider>
+    </ThemeProvider>
   );
 }
 
