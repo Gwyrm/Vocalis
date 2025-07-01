@@ -1,179 +1,161 @@
-# Vocalis - Système de Dictée de Comptes-Rendus Médicaux
+# Vocalis - Système de Dictée Médicale avec IA
 
-Vocalis est une application web moderne conçue pour faciliter la création de comptes-rendus médicaux par dictée vocale. Elle supporte trois types d'examens : Scanner (CT), IRM et Échographie, avec des templates personnalisables et une interface utilisateur intuitive.
+Vocalis est une application web moderne qui révolutionne la création de comptes-rendus médicaux en utilisant la reconnaissance vocale et l'intelligence artificielle.
 
-## 🎯 Fonctionnalités
+## 🎯 Fonctionnalités principales
 
-### 📋 Templates de Rapports
-- **Scanner (CT)** : Templates pour scanners thoraciques, abdominaux, cérébraux, etc.
-- **IRM** : Templates pour IRM cérébrales, médullaires, ostéo-articulaires, etc.
-- **Échographie** : Templates pour échographies abdominales, cardiaques, obstétricales, etc.
+- **🎤 Dictée vocale** : Plus besoin de remplir des formulaires ! Dictez simplement votre compte-rendu
+- **🤖 Traitement par IA** : Un LLM analyse et structure automatiquement vos dictées
+- **📋 RAG intégré** : Détection automatique des champs obligatoires selon le type d'examen
+- **✨ Corrections automatiques** : L'IA corrige et améliore la terminologie médicale
+- **📄 Export PDF** : Génération de rapports professionnels en un clic
 
-### 🎤 Reconnaissance Vocale
-- Dictée en temps réel en français
-- Support des navigateurs modernes (Chrome, Firefox, Safari)
-- Activation/désactivation par champ
-- Transcription automatique dans les champs de texte
-
-### 👤 Gestion Utilisateur
-- Profils personnalisables par praticien
-- Préférences utilisateur (langue, templates par défaut, etc.)
-- Templates personnalisés par utilisateur
-- Signature automatique des rapports
-
-### 📊 Interface Moderne
-- Design responsive avec Material-UI
-- Navigation intuitive avec sidebar
-- Tableau de bord avec statistiques
-- Historique des rapports avec filtres et recherche
-
-### 📄 Export et Impression
-- Export PDF des rapports
-- Templates PDF personnalisables
-- Impression directe
-- Sauvegarde automatique
-
-## 🚀 Installation et Démarrage
+## 🚀 Démarrage rapide
 
 ### Prérequis
-- Node.js (version 14 ou supérieure)
-- npm ou yarn
+
+- Node.js 14+ et npm
+- Navigateur moderne supportant la reconnaissance vocale (Chrome, Edge, Safari)
 
 ### Installation
+
+1. **Cloner le projet**
 ```bash
-# Installer les dépendances
+git clone https://github.com/votre-username/vocalis.git
+cd vocalis
+```
+
+2. **Installer les dépendances du client**
+```bash
 npm install
+```
 
-# Démarrer l'application en mode développement
+3. **Configurer l'environnement**
+```bash
+cp .env.example .env
+# Éditez .env avec vos paramètres
+```
+
+4. **(Optionnel) Installer le serveur de développement**
+```bash
+cd server
+npm install
+```
+
+### Lancement
+
+**Client React :**
+```bash
 npm start
-
-# Construire pour la production
-npm run build
 ```
 
-### Accès à l'application
-L'application sera accessible à l'adresse : `http://localhost:3000`
-
-## 🛠️ Technologies Utilisées
-
-- **Frontend** : React 18, Material-UI 5
-- **Routage** : React Router DOM
-- **Reconnaissance vocale** : Web Speech API
-- **Export PDF** : jsPDF
-- **Icônes** : Material Icons
-- **Styling** : Emotion/styled-components
-
-## 📱 Compatibilité
-
-### Navigateurs supportés
-- Chrome (recommandé pour la reconnaissance vocale)
-- Firefox
-- Safari
-- Edge
-
-### Fonctionnalités de reconnaissance vocale
-La reconnaissance vocale nécessite :
-- Un navigateur compatible avec l'API Web Speech
-- Une connexion HTTPS (en production)
-- L'autorisation d'accès au microphone
-
-## 🎯 Utilisation
-
-### Créer un nouveau rapport
-1. Accédez au tableau de bord
-2. Choisissez le type d'examen (Scanner, IRM, Échographie)
-3. Remplissez les informations patient
-4. Utilisez la dictée vocale ou la saisie manuelle
-5. Sauvegardez et exportez en PDF
-
-### Utiliser la reconnaissance vocale
-1. Cliquez sur l'icône microphone à côté d'un champ
-2. Autorisez l'accès au microphone si demandé
-3. Parlez clairement en français
-4. Le texte apparaît automatiquement dans le champ
-5. Cliquez à nouveau pour arrêter l'enregistrement
-
-### Gérer les templates
-1. Accédez au profil utilisateur
-2. Onglet "Templates personnalisés"
-3. Créez, modifiez ou supprimez vos templates
-4. Définissez des templates par défaut
-
-## 🔧 Configuration
-
-### Variables d'environnement
-Créez un fichier `.env` à la racine du projet :
-```env
-REACT_APP_API_URL=http://localhost:3001
-REACT_APP_ENV=development
+**Serveur de développement (optionnel) :**
+```bash
+cd server
+npm start
 ```
 
-### Personnalisation
-- Modifiez les templates dans `src/templates/reportTemplates.js`
-- Ajustez les thèmes dans `src/index.js`
-- Configurez les préférences par défaut dans les composants
+L'application sera accessible sur http://localhost:3000
 
-## 📋 Structure du Projet
+## � Comment ça marche ?
+
+1. **Choisissez le type d'examen** (Scanner, IRM, Échographie)
+2. **Cliquez sur le microphone** et commencez à dicter
+3. **L'IA structure automatiquement** votre dictée en temps réel
+4. **Vérifiez et ajustez** si nécessaire (édition possible de chaque champ)
+5. **Exportez en PDF** ou sauvegardez pour plus tard
+
+## 🏗️ Architecture
 
 ```
 vocalis/
-├── public/
-│   ├── index.html
-│   └── manifest.json
 ├── src/
 │   ├── components/
-│   │   ├── Dashboard.js
-│   │   ├── ReportCreator.js
-│   │   ├── ReportHistory.js
-│   │   └── UserProfile.js
-│   ├── contexts/
-│   │   └── UserContext.js
+│   │   ├── VoiceReportCreator.js  # Interface de dictée vocale
+│   │   ├── Dashboard.js           # Tableau de bord
+│   │   └── ...
+│   ├── services/
+│   │   ├── llmService.js          # Intégration avec le LLM
+│   │   └── ragService.js          # Base de connaissances médicales
 │   ├── hooks/
-│   │   └── useSpeechRecognition.js
-│   ├── templates/
-│   │   └── reportTemplates.js
-│   ├── App.js
-│   └── index.js
-├── package.json
-└── README.md
+│   │   └── useSpeechRecognition.js # Hook pour la reconnaissance vocale
+│   └── contexts/
+│       └── UserContext.js         # Gestion de l'utilisateur
+├── server/                        # Serveur de développement (optionnel)
+└── public/
 ```
 
-## 🛡️ Sécurité et Confidentialité
+## 🤖 Intégration LLM
 
-- Aucune donnée vocale n'est stockée
-- Les rapports restent locaux (pour cette version démo)
-- Chiffrement recommandé pour les versions production
-- Conformité RGPD pour les données médicales
+Le système peut être configuré pour utiliser différents LLM :
 
-## 🎓 Formation et Support
+- **OpenAI GPT** : Configurez `REACT_APP_LLM_API_KEY` avec votre clé OpenAI
+- **Claude (Anthropic)** : Compatible avec l'API Claude
+- **Modèles locaux** : Via Ollama ou similaire
+- **Serveur de développement** : Inclus pour tester sans API externe
 
-### Raccourcis clavier
-- `Ctrl + S` : Sauvegarder le rapport
-- `Ctrl + P` : Exporter en PDF
-- `Esc` : Arrêter la reconnaissance vocale
+## 📚 Base de connaissances RAG
 
-### Conseils d'utilisation
-- Parlez clairement et à un rythme normal
-- Utilisez la ponctuation vocale ("point", "virgule")
-- Vérifiez toujours le texte transcrit
-- Sauvegardez régulièrement vos rapports
+Le système RAG intégré contient :
+- Champs obligatoires par type d'examen
+- Terminologie médicale standard
+- Modèles de formulation
+- Valeurs normales pour les mesures
 
-## 🔄 Roadmap
+## 🔧 Configuration avancée
 
-- [ ] Intégration avec systèmes PACS
-- [ ] API backend pour stockage sécurisé
-- [ ] Application mobile
-- [ ] Templates HL7/DICOM
-- [ ] Collaboration multi-utilisateur
-- [ ] Intelligence artificielle pour aide au diagnostic
+### Variables d'environnement
 
-## 📞 Support
+```env
+# API du LLM
+REACT_APP_LLM_API_URL=http://localhost:5000/api/llm
+REACT_APP_LLM_API_KEY=votre_cle_api
 
-Pour toute question ou problème :
-- Consultez la documentation en ligne
-- Contactez l'équipe de support technique
-- Signalez les bugs via les issues GitHub
+# Base de connaissances RAG (optionnel)
+REACT_APP_RAG_API_URL=http://localhost:5001/api/rag
+REACT_APP_RAG_API_KEY=votre_cle_rag
+
+# Langue de reconnaissance vocale
+REACT_APP_SPEECH_LANG=fr-FR
+```
+
+### Personnalisation des templates
+
+Modifiez `src/services/ragService.js` pour :
+- Ajouter de nouveaux types d'examens
+- Personnaliser les champs obligatoires
+- Enrichir la terminologie médicale
+- Adapter les modèles de formulation
+
+## 📱 Compatibilité
+
+- **Navigateurs** : Chrome 90+, Edge 90+, Safari 14+
+- **Systèmes** : Windows, macOS, Linux
+- **Mobile** : Support tactile et reconnaissance vocale mobile
+
+## 🛡️ Sécurité et confidentialité
+
+- Les données restent locales par défaut
+- Possibilité de déployer votre propre LLM
+- Pas de stockage cloud sans configuration explicite
+- Chiffrement des communications API
+
+## � Roadmap
+
+- [ ] Support multi-langues
+- [ ] Mode hors-ligne avec LLM embarqué
+- [ ] Intégration PACS/RIS
+- [ ] Templates personnalisables par spécialité
+- [ ] Apprentissage des préférences utilisateur
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! Voir [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📄 Licence
+
+Ce projet est sous licence MIT. Voir [LICENSE](LICENSE) pour plus de détails.
 
 ---
 
-**Vocalis** - Simplifiez la création de vos comptes-rendus médicaux avec la puissance de la reconnaissance vocale.
+Développé avec ❤️ pour simplifier le travail des professionnels de santé
