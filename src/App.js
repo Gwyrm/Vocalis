@@ -4,61 +4,68 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import frLocale from 'date-fns/locale/fr';
-
-// Context
-import { UserProvider } from './contexts/UserContext';
-
-// Layout
-import {
-  AppBar,
-  Toolbar,
-  Typography,
-  Container,
-  Box,
-  IconButton,
-  Menu,
-  MenuItem,
-  Avatar,
-  Chip,
-} from '@mui/material';
-import {
-  AccountCircle,
-  Logout,
-  RecordVoiceOver,
-  AutoAwesome,
-} from '@mui/icons-material';
+import fr from 'date-fns/locale/fr';
 
 // Components
+import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import VoiceReportCreator from './components/VoiceReportCreator';
-import ReportHistory from './components/ReportHistory';
-import UserProfile from './components/UserProfile';
+import ReportList from './components/ReportList';
+import TemplateManager from './components/TemplateManager';
 
-// Create French theme
+// Contexts
+import { UserProvider } from './contexts/UserContext';
+import { ReportProvider } from './contexts/ReportContext';
+
+// Create theme
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#1976d2',
+      main: '#2196f3',
+      light: '#64b5f6',
+      dark: '#1976d2',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#f50057',
+      light: '#ff5983',
+      dark: '#c51162',
     },
     background: {
       default: '#f5f5f5',
+      paper: '#ffffff',
     },
   },
   typography: {
     fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h4: {
-      fontWeight: 600,
+    h1: {
+      fontSize: '2.5rem',
+      fontWeight: 500,
     },
+    h2: {
+      fontSize: '2rem',
+      fontWeight: 500,
+    },
+    h3: {
+      fontSize: '1.75rem',
+      fontWeight: 500,
+    },
+  },
+  shape: {
+    borderRadius: 8,
   },
   components: {
     MuiButton: {
       styleOverrides: {
         root: {
           textTransform: 'none',
+          borderRadius: 8,
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         },
       },
     },
@@ -66,124 +73,24 @@ const theme = createTheme({
 });
 
 function App() {
-  const [anchorEl, setAnchorEl] = React.useState(null);
-
-  const handleMenu = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={frLocale}>
+      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={fr}>
         <UserProvider>
-          <Router>
-            <Box sx={{ flexGrow: 1 }}>
-              <AppBar position="fixed" elevation={2}>
-                <Toolbar>
-                  <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
-                    Vocalis - Système de Dictée Médicale
-                  </Typography>
-                  
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Chip
-                      icon={<RecordVoiceOver />}
-                      label="Dictée vocale"
-                      color="primary"
-                      variant="outlined"
-                      sx={{ 
-                        color: 'white',
-                        borderColor: 'rgba(255,255,255,0.5)',
-                        '& .MuiChip-icon': { color: 'white' }
-                      }}
-                    />
-                    <Chip
-                      icon={<AutoAwesome />}
-                      label="IA"
-                      color="secondary"
-                      variant="outlined"
-                      sx={{ 
-                        color: 'white',
-                        borderColor: 'rgba(255,255,255,0.5)',
-                        '& .MuiChip-icon': { color: 'white' }
-                      }}
-                    />
-                    
-                    <IconButton
-                      size="large"
-                      aria-label="compte utilisateur"
-                      aria-controls="menu-appbar"
-                      aria-haspopup="true"
-                      onClick={handleMenu}
-                      color="inherit"
-                    >
-                      <Avatar sx={{ bgcolor: 'secondary.main' }}>
-                        <AccountCircle />
-                      </Avatar>
-                    </IconButton>
-                    <Menu
-                      id="menu-appbar"
-                      anchorEl={anchorEl}
-                      anchorOrigin={{
-                        vertical: 'top',
-                        horizontal: 'right',
-                      }}
-                      keepMounted
-                      transformOrigin={{
-                        vertical: 'top',
-                        horizontal: 'right',
-                      }}
-                      open={Boolean(anchorEl)}
-                      onClose={handleClose}
-                    >
-                      <MenuItem onClick={handleClose}>
-                        <AccountCircle sx={{ mr: 1 }} />
-                        Profil
-                      </MenuItem>
-                      <MenuItem onClick={handleClose}>
-                        <Logout sx={{ mr: 1 }} />
-                        Déconnexion
-                      </MenuItem>
-                    </Menu>
-                  </Box>
-                </Toolbar>
-              </AppBar>
-              
-              <Toolbar /> {/* Spacer for fixed AppBar */}
-              
-              <Container maxWidth="xl" sx={{ mt: 4, mb: 4 }}>
+          <ReportProvider>
+            <Router>
+              <Layout>
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/new-report/:reportType" element={<VoiceReportCreator />} />
-                  <Route path="/history" element={<ReportHistory />} />
-                  <Route path="/profile" element={<UserProfile />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/new-report" element={<VoiceReportCreator />} />
+                  <Route path="/reports" element={<ReportList />} />
+                  <Route path="/templates" element={<TemplateManager />} />
                 </Routes>
-              </Container>
-              
-              <Box
-                component="footer"
-                sx={{
-                  py: 3,
-                  px: 2,
-                  mt: 'auto',
-                  backgroundColor: (theme) =>
-                    theme.palette.mode === 'light'
-                      ? theme.palette.grey[200]
-                      : theme.palette.grey[800],
-                  textAlign: 'center',
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  © 2024 Vocalis - Système de Dictée Médicale avec IA
-                </Typography>
-              </Box>
-            </Box>
-          </Router>
+              </Layout>
+            </Router>
+          </ReportProvider>
         </UserProvider>
       </LocalizationProvider>
     </ThemeProvider>

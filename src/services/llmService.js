@@ -1,10 +1,18 @@
 // Service pour l'intégration avec un LLM (ex: OpenAI, Claude, ou un modèle local)
 // Ce service gère le traitement des dictées vocales et la génération de rapports structurés
 
+import axios from 'axios';
+
 const LLM_API_URL = process.env.REACT_APP_LLM_API_URL || 'http://localhost:5000/api/llm';
 const LLM_API_KEY = process.env.REACT_APP_LLM_API_KEY;
 
 export class LLMService {
+  constructor() {
+    this.apiUrl = LLM_API_URL;
+    this.apiKey = LLM_API_KEY;
+    this.llmType = process.env.REACT_APP_LLM_TYPE || 'openai';
+  }
+
   /**
    * Traite une dictée vocale et extrait les informations structurées
    * @param {string} transcript - La transcription vocale brute
@@ -149,6 +157,202 @@ Format de sortie attendu (JSON):
       return [];
     }
   }
+
+  // Process dictation and structure it into a report
+  async processDictation(dictationText, reportType, template = null) {
+    try {
+      const prompt = this.buildPrompt(dictationText, reportType, template);
+      
+      const response = await axios.post(`${this.apiUrl}/process`, {
+        prompt,
+        reportType,
+        llmType: this.llmType,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      console.error('Error processing dictation:', error);
+      // Fallback to local processing if API fails
+      return this.localProcessDictation(dictationText, reportType, template);
+    }
+  }
+
+  // Build prompt for LLM
+  buildPrompt(dictationText, reportType, template) {
+    const typeInstructions = {
+      scanner: "Structurez ce compte-rendu de scanner en incluant: indication, technique, résultats, conclusion",
+      irm: "Structurez ce compte-rendu d'IRM en incluant: indication clinique, protocole, description des séquences, résultats, conclusion",
+      echographie: "Structurez ce compte-rendu d'échographie en incluant: indication, technique, mesures, description, conclusion",
+      general: "Structurez ce compte-rendu médical de manière claire et professionnelle"
+    };
+
+    const instruction = typeInstructions[reportType] || typeInstructions.general;
+    
+    let prompt = `${instruction}\n\nDictée: ${dictationText}`;
+    
+    if (template) {
+      prompt += `\n\nUtilisez ce template comme guide:\n${JSON.stringify(template, null, 2)}`;
+    }
+
+    return prompt;
+  }
+
+  // Local fallback processing
+  localProcessDictation(dictationText, reportType, template) {
+    const sections = this.extractSections(dictationText, reportType);
+    const corrections = this.applyMedicalCorrections(sections);
+    
+    return {
+      success: true,
+      report: corrections,
+      metadata: {
+        processedBy: 'local',
+        reportType,
+        timestamp: new Date().toISOString(),
+      }
+    };
+  }
+
+  // Extract sections from dictation
+  extractSections(text, reportType) {
+    const sections = {
+      patientInfo: {},
+      indication: '',
+      technique: '',
+      findings: '',
+      conclusion: '',
+      recommendations: ''
+    };
+
+    // Simple keyword-based extraction
+    const keywords = {
+      indication: ['indication', 'motif', 'raison', 'pour'],
+      technique: ['technique', 'protocole', 'séquence', 'acquisition'],
+      findings: ['résultat', 'constat', 'observation', 'mesure', 'retrouve', 'montre'],
+      conclusion: ['conclusion', 'en conclusion', 'diagnostic', 'impression'],
+      recommendations: ['recommand', 'suivi', 'contrôle', 'proposé']
+    };
+
+    // Split text into sentences
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim());
+    
+    sentences.forEach(sentence => {
+      const lowerSentence = sentence.toLowerCase();
+      
+      for (const [section, words] of Object.entries(keywords)) {
+        if (words.some(word => lowerSentence.includes(word))) {
+          sections[section] += sentence.trim() + '. ';
+          break;
+        }
+      }
+    });
+
+    // If no specific sections found, put all in findings
+    if (!sections.findings && !sections.conclusion) {
+      sections.findings = text;
+    }
+
+    return sections;
+  }
+
+  // Apply medical terminology corrections
+  applyMedicalCorrections(sections) {
+    const corrections = {
+      // Common medical terms
+      'irm': 'IRM',
+      'scanner': 'Scanner',
+      'echo': 'échographie',
+      'ecographie': 'échographie',
+      'mm': 'mm',
+      'cm': 'cm',
+      'ml': 'mL',
+      'l': 'L',
+      // Anatomical terms
+      'foi': 'foie',
+      'rein': 'rein',
+      'reins': 'reins',
+      'vesicule': 'vésicule',
+      'rate': 'rate',
+      'pancreas': 'pancréas',
+      // Common corrections
+      'pas de': 'absence de',
+      'normal': 'de morphologie normale',
+      'rien': 'absence d\'anomalie',
+    };
+
+    const correctedSections = {};
+    
+    for (const [key, value] of Object.entries(sections)) {
+      if (typeof value === 'string') {
+        let corrected = value;
+        
+        // Apply corrections
+        for (const [wrong, right] of Object.entries(corrections)) {
+          const regex = new RegExp(`\\b${wrong}\\b`, 'gi');
+          corrected = corrected.replace(regex, right);
+        }
+        
+        // Capitalize first letter of sentences
+        corrected = corrected.replace(/(^|\. )([a-z])/g, (match, p1, p2) => p1 + p2.toUpperCase());
+        
+        correctedSections[key] = corrected;
+      } else {
+        correctedSections[key] = value;
+      }
+    }
+
+    return correctedSections;
+  }
+
+  // Get report suggestions
+  async getReportSuggestions(partialText, reportType) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/suggest`, {
+        text: partialText,
+        reportType,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      return response.data.suggestions || [];
+    } catch (error) {
+      console.error('Error getting suggestions:', error);
+      return [];
+    }
+  }
+
+  // Validate report completeness
+  validateReport(report, reportType) {
+    const requiredFields = {
+      scanner: ['indication', 'technique', 'findings', 'conclusion'],
+      irm: ['indication', 'technique', 'findings', 'conclusion'],
+      echographie: ['indication', 'technique', 'findings', 'conclusion'],
+      general: ['findings', 'conclusion']
+    };
+
+    const required = requiredFields[reportType] || requiredFields.general;
+    const missing = [];
+    
+    required.forEach(field => {
+      if (!report[field] || report[field].trim() === '') {
+        missing.push(field);
+      }
+    });
+
+    return {
+      isValid: missing.length === 0,
+      missingFields: missing,
+      completeness: ((required.length - missing.length) / required.length) * 100
+    };
+  }
 }
 
 // Fonction utilitaire pour utiliser un LLM local via Ollama ou similaire
@@ -208,4 +412,4 @@ function extractPattern(text, pattern) {
   return match ? match[1].trim() : '[MANQUANT]';
 }
 
-export default LLMService;
+export default new LLMService();

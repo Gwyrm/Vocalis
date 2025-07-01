@@ -1,7 +1,295 @@
 // Service RAG (Retrieval-Augmented Generation) pour la gestion des connaissances médicales
 // Ce service maintient une base de connaissances sur les exigences spécifiques à chaque type d'examen
 
+import axios from 'axios';
+
 export class RAGService {
+  constructor() {
+    this.apiUrl = process.env.REACT_APP_RAG_API_URL || 'http://localhost:5001/api/rag';
+    this.apiKey = process.env.REACT_APP_RAG_API_KEY || '';
+    
+    // Templates prédéfinis par type d'examen
+    this.defaultTemplates = {
+      scanner: {
+        name: 'Scanner Standard',
+        type: 'scanner',
+        sections: {
+          indication: 'Indication de l\'examen',
+          technique: 'Technique d\'acquisition (avec ou sans injection, protocole)',
+          findings: {
+            thorax: '',
+            abdomen: '',
+            pelvis: '',
+            autres: ''
+          },
+          conclusion: 'Synthèse et conclusion',
+          recommendations: 'Recommandations de suivi'
+        },
+        requiredFields: ['indication', 'technique', 'findings', 'conclusion'],
+        terminology: {
+          normal: ['sans particularité', 'de morphologie normale', 'sans anomalie décelable'],
+          pathologique: ['anomalie', 'lésion', 'masse', 'nodule', 'infiltrat']
+        }
+      },
+      irm: {
+        name: 'IRM Standard',
+        type: 'irm',
+        sections: {
+          indication: 'Indication clinique',
+          technique: 'Protocole et séquences réalisées',
+          findings: {
+            t1: 'Séquences T1',
+            t2: 'Séquences T2',
+            diffusion: 'Séquences de diffusion',
+            gadolinium: 'Après injection de gadolinium'
+          },
+          conclusion: 'Conclusion',
+          recommendations: 'Recommandations'
+        },
+        requiredFields: ['indication', 'technique', 'findings', 'conclusion'],
+        terminology: {
+          sequences: ['T1', 'T2', 'FLAIR', 'DWI', 'ADC', 'T1 Gado'],
+          normal: ['signal normal', 'pas d\'anomalie de signal', 'morphologie conservée']
+        }
+      },
+      echographie: {
+        name: 'Échographie Standard',
+        type: 'echographie',
+        sections: {
+          indication: 'Indication',
+          technique: 'Technique d\'examen',
+          findings: {
+            foie: 'Foie',
+            vesiculeBiliaire: 'Vésicule biliaire',
+            voiesBiliaires: 'Voies biliaires',
+            pancreas: 'Pancréas',
+            rate: 'Rate',
+            reins: 'Reins',
+            autres: 'Autres'
+          },
+          measurements: {
+            foie: { size: '', echogenicity: '' },
+            rate: { size: '' },
+            reins: { 
+              droit: { size: '', cortex: '' },
+              gauche: { size: '', cortex: '' }
+            }
+          },
+          conclusion: 'Conclusion',
+          recommendations: 'Recommandations'
+        },
+        requiredFields: ['indication', 'findings', 'conclusion'],
+        normalValues: {
+          foie: { size: '15-17 cm', echogenicity: 'homogène' },
+          rate: { size: '< 12 cm' },
+          reins: { size: '10-12 cm', cortex: '15-20 mm' }
+        }
+      }
+    };
+  }
+
+  // Récupérer un template par type
+  async getTemplate(reportType) {
+    try {
+      // Essayer d'abord l'API
+      const response = await axios.get(`${this.apiUrl}/template/${reportType}`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+      });
+      
+      return response.data.template;
+    } catch (error) {
+      console.log('Using default template:', reportType);
+      // Utiliser le template par défaut en cas d'erreur
+      return this.defaultTemplates[reportType] || this.defaultTemplates.scanner;
+    }
+  }
+
+  // Récupérer tous les templates disponibles
+  async getAllTemplates() {
+    try {
+      const response = await axios.get(`${this.apiUrl}/templates`, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+      });
+      
+      return response.data.templates;
+    } catch (error) {
+      console.log('Using default templates');
+      return Object.values(this.defaultTemplates);
+    }
+  }
+
+  // Sauvegarder un template personnalisé
+  async saveCustomTemplate(template) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/template`, template, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error saving template:', error);
+      // Sauvegarder localement en cas d'erreur
+      const templates = this.getLocalTemplates();
+      templates.push({ ...template, id: Date.now(), local: true });
+      localStorage.setItem('customTemplates', JSON.stringify(templates));
+      return { success: true, local: true };
+    }
+  }
+
+  // Récupérer les templates locaux
+  getLocalTemplates() {
+    const stored = localStorage.getItem('customTemplates');
+    return stored ? JSON.parse(stored) : [];
+  }
+
+  // Enrichir un rapport avec des informations contextuelles
+  async enrichReport(report, reportType) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/enrich`, {
+        report,
+        reportType,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      return response.data.enrichedReport;
+    } catch (error) {
+      console.log('Local enrichment fallback');
+      return this.localEnrichReport(report, reportType);
+    }
+  }
+
+  // Enrichissement local du rapport
+  localEnrichReport(report, reportType) {
+    const template = this.defaultTemplates[reportType];
+    if (!template) return report;
+
+    const enriched = { ...report };
+
+    // Ajouter les valeurs normales pour référence
+    if (template.normalValues && report.measurements) {
+      enriched.normalValues = template.normalValues;
+    }
+
+    // Ajouter la terminologie médicale appropriée
+    if (template.terminology) {
+      enriched.terminology = template.terminology;
+    }
+
+    // Vérifier la complétude
+    const missingFields = [];
+    template.requiredFields.forEach(field => {
+      if (!report[field] || report[field].trim() === '') {
+        missingFields.push(field);
+      }
+    });
+
+    enriched.validation = {
+      complete: missingFields.length === 0,
+      missingFields,
+      completeness: ((template.requiredFields.length - missingFields.length) / template.requiredFields.length) * 100
+    };
+
+    return enriched;
+  }
+
+  // Rechercher des documents similaires
+  async searchSimilarReports(query, reportType, limit = 5) {
+    try {
+      const response = await axios.post(`${this.apiUrl}/search`, {
+        query,
+        reportType,
+        limit,
+      }, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      return response.data.results;
+    } catch (error) {
+      console.error('Error searching similar reports:', error);
+      return [];
+    }
+  }
+
+  // Télécharger des documents de référence
+  async uploadReferenceDocument(file, metadata) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('metadata', JSON.stringify(metadata));
+
+      const response = await axios.post(`${this.apiUrl}/upload`, formData, {
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      throw error;
+    }
+  }
+
+  // Obtenir les champs obligatoires pour un type de rapport
+  getRequiredFields(reportType) {
+    const template = this.defaultTemplates[reportType];
+    return template ? template.requiredFields : ['indication', 'findings', 'conclusion'];
+  }
+
+  // Obtenir les valeurs normales pour un type de rapport
+  getNormalValues(reportType) {
+    const template = this.defaultTemplates[reportType];
+    return template ? template.normalValues : {};
+  }
+
+  // Valider un rapport selon le template
+  validateReportAgainstTemplate(report, reportType) {
+    const template = this.defaultTemplates[reportType];
+    if (!template) return { isValid: true, errors: [] };
+
+    const errors = [];
+    const warnings = [];
+
+    // Vérifier les champs obligatoires
+    template.requiredFields.forEach(field => {
+      if (!report[field] || report[field].trim() === '') {
+        errors.push(`Le champ "${field}" est obligatoire`);
+      }
+    });
+
+    // Vérifier les mesures si applicable
+    if (template.normalValues && report.measurements) {
+      Object.entries(template.normalValues).forEach(([organ, normalValue]) => {
+        if (report.measurements[organ]) {
+          // Ici on pourrait faire une vérification plus sophistiquée
+          warnings.push(`Vérifier les mesures de ${organ} (valeurs normales: ${JSON.stringify(normalValue)})`);
+        }
+      });
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors,
+      warnings,
+      completeness: ((template.requiredFields.length - errors.length) / template.requiredFields.length) * 100
+    };
+  }
+
   // Base de connaissances des champs obligatoires par type d'examen
   static knowledgeBase = {
     scanner: {
@@ -371,4 +659,4 @@ export class RAGService {
   }
 }
 
-export default RAGService;
+export default new RAGService();

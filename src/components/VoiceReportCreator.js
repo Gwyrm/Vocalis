@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Box,
   Paper,
@@ -29,6 +29,11 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import {
   Mic,
@@ -48,6 +53,10 @@ import {
   ExpandMore,
   Edit,
   Refresh,
+  Check,
+  Scanner,
+  CameraAlt,
+  WifiTethering,
 } from '@mui/icons-material';
 import { styled } from '@mui/material/styles';
 import useSpeechRecognition from '../hooks/useSpeechRecognition';
@@ -55,6 +64,8 @@ import { useUser } from '../contexts/UserContext';
 import LLMService from '../services/llmService';
 import RAGService from '../services/ragService';
 import jsPDF from 'jspdf';
+import PDFGenerator from './PDFGenerator';
+import { useReports } from '../contexts/ReportContext';
 
 // Styled components
 const PulsingMic = styled(Box)(({ theme }) => ({
@@ -87,10 +98,30 @@ const TranscriptBox = styled(Paper)(({ theme }) => ({
   position: 'relative',
 }));
 
+const reportTypeConfig = {
+  scanner: {
+    icon: <Scanner />,
+    color: '#2196f3',
+    label: 'Scanner',
+  },
+  irm: {
+    icon: <CameraAlt />,
+    color: '#4caf50',
+    label: 'IRM',
+  },
+  echographie: {
+    icon: <WifiTethering />,
+    color: '#ff9800',
+    label: 'Échographie',
+  },
+};
+
 const VoiceReportCreator = () => {
   const navigate = useNavigate();
   const { reportType } = useParams();
+  const [searchParams] = useSearchParams();
   const { currentUser } = useUser();
+  const { createReport, updateReport } = useReports();
   const transcriptEndRef = useRef(null);
   
   // États
@@ -104,16 +135,56 @@ const VoiceReportCreator = () => {
   const [saveDialog, setSaveDialog] = useState(false);
   const [editingField, setEditingField] = useState(null);
   const [processingStep, setProcessingStep] = useState('');
+  const [template, setTemplate] = useState(null);
+  const [report, setReport] = useState({
+    type: reportType,
+    patientName: '',
+    patientId: '',
+    examDate: new Date().toISOString().split('T')[0],
+    indication: '',
+    technique: '',
+    findings: '',
+    conclusion: '',
+    recommendations: '',
+  });
+  const [saveStatus, setSaveStatus] = useState(null);
+  const [showPdfDialog, setShowPdfDialog] = useState(false);
 
   const {
     transcript,
+    interimTranscript,
     isListening,
     isSupported,
     error: speechError,
     startListening,
     stopListening,
     resetTranscript,
-  } = useSpeechRecognition();
+    getFullTranscript,
+  } = useSpeechRecognition({
+    language: currentUser?.language || 'fr-FR',
+    continuous: true,
+    interimResults: true,
+  });
+
+  // Load template when report type changes
+  useEffect(() => {
+    const loadTemplate = async () => {
+      const templateData = await RAGService.getTemplate(reportType);
+      setTemplate(templateData);
+    };
+    loadTemplate();
+  }, [reportType]);
+
+  // Auto-save functionality
+  useEffect(() => {
+    if (!currentUser?.autoSave || !report.id) return;
+
+    const autoSaveTimer = setTimeout(() => {
+      saveReport(true);
+    }, currentUser?.autoSaveInterval || 30000); // 30 seconds default
+
+    return () => clearTimeout(autoSaveTimer);
+  }, [report, currentUser]);
 
   // Effet pour scroller automatiquement le transcript
   useEffect(() => {
@@ -358,6 +429,100 @@ const VoiceReportCreator = () => {
     setEditingField(null);
   };
 
+  // Process dictation with LLM
+  const processDictation = async () => {
+    if (!transcript) return;
+
+    setIsProcessing(true);
+    try {
+      const result = await LLMService.processDictation(transcript, reportType, template);
+      
+      if (result.success) {
+        const processedReport = {
+          ...report,
+          ...result.report,
+          rawTranscript: transcript,
+        };
+        
+        // Enrich with RAG data
+        const enrichedReport = await RAGService.enrichReport(processedReport, reportType);
+        
+        setReport(enrichedReport);
+        
+        // Validate report
+        const validation = RAGService.validateReportAgainstTemplate(enrichedReport, reportType);
+        setValidationErrors(validation.errors);
+      }
+    } catch (error) {
+      console.error('Error processing dictation:', error);
+      Alert('Erreur lors du traitement de la dictée');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Save report
+  const saveReport = async (isAutoSave = false) => {
+    setSaveStatus('saving');
+    
+    try {
+      let savedReport;
+      if (report.id) {
+        updateReport(report.id, report);
+        savedReport = report;
+      } else {
+        savedReport = createReport(report);
+        setReport(savedReport);
+      }
+      
+      setSaveStatus('saved');
+      if (!isAutoSave) {
+        setTimeout(() => setSaveStatus(null), 3000);
+      }
+      
+      return savedReport;
+    } catch (error) {
+      console.error('Error saving report:', error);
+      setSaveStatus('error');
+    }
+  };
+
+  // Handle field change
+  const handleFieldChange = (field, value) => {
+    setReport(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  // Toggle field editing
+  const toggleFieldEdit = (field) => {
+    if (editingField === field) {
+      setEditingField(null);
+    } else {
+      setEditingField(field);
+    }
+  };
+
+  // Export as PDF
+  const exportPDF = async () => {
+    const savedReport = await saveReport();
+    if (savedReport) {
+      setShowPdfDialog(true);
+    }
+  };
+
+  const fieldLabels = {
+    patientName: 'Nom du patient',
+    patientId: 'ID patient',
+    examDate: 'Date de l\'examen',
+    indication: 'Indication',
+    technique: 'Technique',
+    findings: 'Résultats',
+    conclusion: 'Conclusion',
+    recommendations: 'Recommandations',
+  };
+
   return (
     <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
       {/* En-tête */}
@@ -424,9 +589,9 @@ const VoiceReportCreator = () => {
               {fullTranscript ? (
                 <Typography variant="body1" sx={{ whiteSpace: 'pre-wrap' }}>
                   {fullTranscript}
-                  {transcript && (
+                  {interimTranscript && (
                     <span style={{ color: 'primary.main', fontStyle: 'italic' }}>
-                      {' '}{transcript}
+                      {' '}{interimTranscript}
                     </span>
                   )}
                 </Typography>
@@ -738,6 +903,24 @@ const VoiceReportCreator = () => {
           <Button onClick={() => setSaveDialog(false)}>Fermer</Button>
           <Button onClick={() => navigate('/history')} variant="contained">
             Voir l'historique
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* PDF Dialog */}
+      <Dialog
+        open={showPdfDialog}
+        onClose={() => setShowPdfDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Aperçu PDF</DialogTitle>
+        <DialogContent>
+          <PDFGenerator report={report} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPdfDialog(false)}>
+            Fermer
           </Button>
         </DialogActions>
       </Dialog>
