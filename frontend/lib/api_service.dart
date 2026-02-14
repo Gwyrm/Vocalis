@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart'; // For kIsWeb
 
 class ApiService {
   // Use 10.0.2.2 for Android emulator, localhost for iOS/Web
-  static const String _baseUrlAndroid = 'http://10.0.2.2:8000';
-  static const String _baseUrlLocal = 'http://127.0.0.1:8000';
+  static const String _baseUrlAndroid = 'http://10.0.2.2:8080';
+  static const String _baseUrlLocal = 'http://127.0.0.1:8080';
 
   String get baseUrl {
     if (kIsWeb) return _baseUrlLocal;

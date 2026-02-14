@@ -16,10 +16,14 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins for development
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Vocalis Backend is running"}
 
 class ChatRequest(BaseModel):
     message: str
@@ -102,4 +106,4 @@ async def generate_pdf(request: PrescriptionRequest):
         raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
