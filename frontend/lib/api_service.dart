@@ -4,15 +4,26 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart'; // For kIsWeb
 
 class ApiService {
-  // Use 10.0.2.2 for Android emulator, localhost for iOS/Web
-  static const String _baseUrlAndroid = 'http://10.0.2.2:8080';
+  // Check for environment variable set via --dart-define (e.g. --dart-define=API_URL=https://api.example.com)
+  static const String _envBaseUrl = String.fromEnvironment('API_URL');
   static const String _baseUrlLocal = 'http://127.0.0.1:8080';
 
   String get baseUrl {
-    if (kIsWeb) return _baseUrlLocal;
-    // Simple check, can be improved for real device vs emulator
+    // 1. Check if provided via --dart-define
+    if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
+
+    // 2. For Web, attempt to use the current origin if not provided
+    if (kIsWeb) {
+      final origin = Uri.base.origin;
+      if (origin.contains('localhost') || origin.contains('127.0.0.1')) {
+        return _baseUrlLocal;
+      }
+      // If deployed, assume the API is on the same host or port 8080
+      // You can adjust this logic: e.g., origin + ":8080" if API is on 8080
+      return origin; 
+    }
+
     return _baseUrlLocal; 
-    // In production, use env variables or config
   }
 
   Future<String> chat(String message) async {
