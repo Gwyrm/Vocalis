@@ -19,6 +19,8 @@ import logging
 from contextlib import asynccontextmanager
 import json
 from datetime import datetime
+import sqlite3
+import uuid
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +36,12 @@ MODEL_PATH = os.getenv(
     "MODEL_PATH",
     os.path.join(os.path.dirname(__file__), "models", "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
 )
+
+# Database path
+DB_PATH = os.path.join(os.path.dirname(__file__), "prescriptions.db")
+
+# Current session ID
+current_session_id = None
 
 # ============================================================================
 # PROMPTS
@@ -142,24 +150,110 @@ class GeneratePDFRequest(BaseModel):
 
 
 # ============================================================================
-# SESSION STORAGE (In-memory)
+# DATABASE FUNCTIONS
 # ============================================================================
 
-# Store prescription data per session (could use sessionID if needed)
-prescription_storage: Dict[str, PrescriptionData] = {}
+def init_db():
+    """Initialize SQLite database with prescriptions table"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS prescriptions (
+            id TEXT PRIMARY KEY,
+            patient_name TEXT,
+            patient_age TEXT,
+            diagnosis TEXT,
+            medication TEXT,
+            dosage TEXT,
+            duration TEXT,
+            special_instructions TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    logger.info("Database initialized")
+
+
+def create_new_session() -> str:
+    """Create new prescription session and return session ID"""
+    global current_session_id
+    session_id = str(uuid.uuid4())
+    current_session_id = session_id
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO prescriptions (id) VALUES (?)
+    ''', (session_id,))
+    conn.commit()
+    conn.close()
+    logger.info(f"New session created: {session_id}")
+    return session_id
+
 
 def get_session_data() -> PrescriptionData:
-    """Get or create session data"""
-    session_id = "default"  # Simple session ID (could be per-user)
-    if session_id not in prescription_storage:
-        prescription_storage[session_id] = PrescriptionData()
-    return prescription_storage[session_id]
+    """Get session data from database"""
+    global current_session_id
+    if not current_session_id:
+        create_new_session()
+
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT patient_name, patient_age, diagnosis, medication, dosage, duration, special_instructions
+        FROM prescriptions WHERE id = ?
+    ''', (current_session_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return PrescriptionData(
+            patientName=row['patient_name'],
+            patientAge=row['patient_age'],
+            diagnosis=row['diagnosis'],
+            medication=row['medication'],
+            dosage=row['dosage'],
+            duration=row['duration'],
+            specialInstructions=row['special_instructions']
+        )
+    return PrescriptionData()
 
 
 def update_session_data(data: PrescriptionData) -> None:
-    """Update session data"""
-    session_id = "default"
-    prescription_storage[session_id] = data
+    """Update session data in database"""
+    global current_session_id
+    if not current_session_id:
+        create_new_session()
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        UPDATE prescriptions SET
+            patient_name = ?,
+            patient_age = ?,
+            diagnosis = ?,
+            medication = ?,
+            dosage = ?,
+            duration = ?,
+            special_instructions = ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    ''', (
+        data.patientName,
+        data.patientAge,
+        data.diagnosis,
+        data.medication,
+        data.dosage,
+        data.duration,
+        data.specialInstructions,
+        current_session_id
+    ))
+    conn.commit()
+    conn.close()
+    logger.info(f"Session {current_session_id} updated")
 
 
 # ============================================================================
@@ -180,10 +274,12 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
     if llm is None:
         return current_data
 
+    # Build prompt for LLM to extract medical information
     prompt = (
-        f"<|system|>\nTu es un expert medical. Extrait les infos du texte et retourne JSON.\n"
-        f"Cles: patientName, patientAge, diagnosis, medication, dosage, duration, specialInstructions.\n"
-        f"Retourne SEULEMENT le JSON valide.</s>\n"
+        f"<|system|>\nTu es un expert medical specialise dans l'extraction de donnees.\n"
+        f"Extrais les informations medicales du texte et retourne UNIQUEMENT du JSON valide.\n"
+        f"Format JSON attendu avec les clés: patientName, patientAge, diagnosis, medication, dosage, duration, specialInstructions\n"
+        f"Utilise null pour les champs manquants. Ne retourne QUE le JSON, rien d'autre.</s>\n"
         f"<|user|>\nTexte: {text}</s>\n"
         f"<|assistant|>\n"
     )
@@ -191,28 +287,33 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
     try:
         output = llm(
             prompt,
-            max_tokens=200,
+            max_tokens=300,
             temperature=0.1,
             top_p=0.9,
             stop=["</s>"],
             echo=False
         )
         response = output["choices"][0]["text"].strip()
+        logger.info(f"LLM extraction response: {response[:200]}")
 
-        # Extract JSON
-        if "{" in response:
+        # Extract JSON from response
+        if "{" in response and "}" in response:
             json_str = response[response.find("{"):response.rfind("}")+1]
             extracted = json.loads(json_str)
 
-            # Update data
+            # Update current_data with extracted values
             for key in ["patientName", "patientAge", "diagnosis", "medication",
                        "dosage", "duration", "specialInstructions"]:
                 if key in extracted and extracted[key]:
                     value = str(extracted[key]).strip()
-                    if value and value.lower() not in ["none", "null"]:
+                    if value and value.lower() not in ["none", "null", "n/a", ""]:
                         setattr(current_data, key, value)
                         logger.info(f"Extracted {key}: {value}")
+        else:
+            logger.warning(f"No JSON found in LLM response")
 
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON parsing error: {e}")
     except Exception as e:
         logger.error(f"Extraction error: {e}")
 
@@ -261,8 +362,14 @@ def generate_response(user_message: str, prescription_data: PrescriptionData) ->
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load model at startup, release at shutdown"""
-    global llm
+    """Initialize database and load model at startup"""
+    global llm, current_session_id
+
+    # Initialize database
+    init_db()
+    current_session_id = None
+
+    # Load model
     logger.info(f"Loading model from {MODEL_PATH}...")
     try:
         llm = Llama(
@@ -451,10 +558,10 @@ Date: {datetime.now().strftime('%d/%m/%Y')}
 
 @app.post("/api/reset")
 async def reset_session():
-    """Reset the current session (clear all data)"""
-    session_id = "default"
-    prescription_storage[session_id] = PrescriptionData()
-    return {"status": "ok", "message": "Session reset"}
+    """Reset the current session and create new one"""
+    global current_session_id
+    current_session_id = create_new_session()
+    return {"status": "ok", "message": "Session reset", "session_id": current_session_id}
 
 
 # ============================================================================
