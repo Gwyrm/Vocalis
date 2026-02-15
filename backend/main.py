@@ -274,12 +274,11 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
     if llm is None:
         return current_data
 
-    # Build prompt for LLM to extract medical information
+    # Build prompt for LLM to extract medical information in JSON format
     prompt = (
-        f"<|system|>\nTu es un expert medical specialise dans l'extraction de donnees.\n"
-        f"Extrais les informations medicales du texte et retourne UNIQUEMENT du JSON valide.\n"
-        f"Format JSON attendu avec les clés: patientName, patientAge, diagnosis, medication, dosage, duration, specialInstructions\n"
-        f"Utilise null pour les champs manquants. Ne retourne QUE le JSON, rien d'autre.</s>\n"
+        f"<|system|>\nExtrais les donnees medicales et reponds EN JSON UNIQUEMENT.\n"
+        f"Champs: patientName, patientAge, diagnosis, medication, dosage, duration, specialInstructions\n"
+        f"Mets null si absent. Ne reponds QUE avec du JSON valide.</s>\n"
         f"<|user|>\nTexte: {text}</s>\n"
         f"<|assistant|>\n"
     )
@@ -287,21 +286,27 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
     try:
         output = llm(
             prompt,
-            max_tokens=300,
-            temperature=0.1,
+            max_tokens=250,
+            temperature=0.0,  # Temperature 0 for consistency
             top_p=0.9,
             stop=["</s>"],
             echo=False
         )
         response = output["choices"][0]["text"].strip()
-        logger.info(f"LLM extraction response: {response[:200]}")
+        logger.info(f"LLM extraction response: {response}")
 
-        # Extract JSON from response
+        # Try to extract JSON from response
+        extracted = None
         if "{" in response and "}" in response:
-            json_str = response[response.find("{"):response.rfind("}")+1]
-            extracted = json.loads(json_str)
+            try:
+                json_str = response[response.find("{"):response.rfind("}")+1]
+                extracted = json.loads(json_str)
+                logger.info(f"Successfully extracted JSON")
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON parse failed: {e}")
 
-            # Update current_data with extracted values
+        # If we got extracted data, update current_data
+        if extracted:
             for key in ["patientName", "patientAge", "diagnosis", "medication",
                        "dosage", "duration", "specialInstructions"]:
                 if key in extracted and extracted[key]:
@@ -309,11 +314,7 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
                     if value and value.lower() not in ["none", "null", "n/a", ""]:
                         setattr(current_data, key, value)
                         logger.info(f"Extracted {key}: {value}")
-        else:
-            logger.warning(f"No JSON found in LLM response")
 
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON parsing error: {e}")
     except Exception as e:
         logger.error(f"Extraction error: {e}")
 
@@ -569,4 +570,4 @@ async def reset_session():
 # ============================================================================
 
 if __name__ == "__main__":
-    uvicorn.run("main_v2:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
