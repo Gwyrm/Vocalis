@@ -38,11 +38,17 @@ class ApiService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['response'];
+      } else if (response.statusCode == 503) {
+        throw Exception('Le service AI (Ollama) n\'est pas disponible. Vérifiez qu\'il est bien lancé.');
+      } else if (response.statusCode == 504) {
+        throw Exception('L\'IA met trop de temps à répondre. Le modèle est peut-être trop lourd pour votre serveur.');
       } else {
-        throw Exception('Failed to get response: ${response.statusCode}');
+        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+        throw Exception('Erreur $detail (${response.statusCode})');
       }
     } catch (e) {
-      throw Exception('Error connecting to backend: $e');
+      if (e is Exception) rethrow;
+      throw Exception('Erreur de connexion : $e');
     }
   }
 

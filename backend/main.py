@@ -9,6 +9,14 @@ import base64
 import os
 import tempfile
 import uuid
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("vocalis-backend")
 
 app = FastAPI()
 
@@ -25,6 +33,24 @@ app.add_middleware(
 async def root():
     return {"status": "ok", "message": "Vocalis Backend is running"}
 
+@app.get("/api/health")
+async def health_check():
+    ollama_base_url = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+    try:
+        async with httpx.AsyncClient() as client:
+            # Check if Ollama is responsive
+            response = await client.get(f"{ollama_base_url}/api/tags", timeout=5.0)
+            ollama_status = "ok" if response.status_code == 200 else "error"
+    except Exception:
+        ollama_status = "unavailable"
+    
+    return {
+        "status": "ok",
+        "backend": "running",
+        "ollama": ollama_status,
+        "ollama_url": ollama_base_url
+    }
+
 class ChatRequest(BaseModel):
     message: str
     model: str = "mistral" # Default model, can be changed
@@ -35,26 +61,47 @@ class PrescriptionRequest(BaseModel):
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
+    logger.info(f"Received chat request for model: {request.model}")
     try:
         async with httpx.AsyncClient() as client:
-            # Assuming Ollama is running locally on default port
-            ollama_url = "http://127.0.0.1:11434/api/generate"
+            ollama_base_url = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")
+            ollama_url = f"{ollama_base_url}/api/generate"
+            ollama_timeout = float(os.getenv("OLLAMA_TIMEOUT", "60.0"))
+            
             payload = {
                 "model": request.model,
                 "prompt": request.message,
                 "stream": False
             }
-            response = await client.post(ollama_url, json=payload, timeout=60.0)
-            response.raise_for_status()
-            data = response.json()
-            return {"response": data.get("response", "")}
-    except httpx.RequestError as e:
-        raise HTTPException(status_code=500, detail=f"Error communicating with Ollama: {str(e)}")
+            
+            try:
+                response = await client.post(ollama_url, json=payload, timeout=ollama_timeout)
+                response.raise_for_status()
+                data = response.json()
+                logger.info("Successfully received response from Ollama")
+                return {"response": data.get("response", "")}
+            
+            except httpx.ConnectError as e:
+                logger.error(f"Could not connect to Ollama at {ollama_url}: {e}")
+                raise HTTPException(status_code=503, detail="Ollama service is unavailable. Please ensure it is running.")
+            
+            except httpx.TimeoutException as e:
+                logger.error(f"Ollama request timed out after {ollama_timeout}s: {e}")
+                raise HTTPException(status_code=504, detail="Ollama took too long to respond. The model might be loading or too heavy.")
+            
+            except httpx.HTTPStatusError as e:
+                logger.error(f"Ollama returned an error status {e.response.status_code}: {e.response.text}")
+                raise HTTPException(status_code=e.response.status_code, detail=f"Ollama error: {e.response.text}")
+
+    except HTTPException:
+        raise
     except Exception as e:
+        logger.exception("Unexpected error in chat endpoint")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.post("/api/generate-pdf")
 async def generate_pdf(request: PrescriptionRequest):
+    logger.info("Received PDF generation request")
     try:
         pdf = FPDF()
         pdf.add_page()
@@ -92,7 +139,7 @@ async def generate_pdf(request: PrescriptionRequest):
                 os.remove(tmp_img_path) # Clean up temp file
                 
             except Exception as e:
-                print(f"Error processing signature: {e}")
+                logger.error(f"Error processing signature: {e}")
                 pdf.cell(200, 10, txt="[Signature Error]", ln=1)
 
         # Output PDF to temporary file
@@ -100,9 +147,11 @@ async def generate_pdf(request: PrescriptionRequest):
         filepath = os.path.join(tempfile.gettempdir(), filename)
         pdf.output(filepath)
         
+        logger.info(f"Successfully generated PDF: {filename}")
         return FileResponse(filepath, filename=filename, media_type='application/pdf')
 
     except Exception as e:
+        logger.exception("Error during PDF generation")
         raise HTTPException(status_code=500, detail=f"Error generating PDF: {str(e)}")
 
 if __name__ == "__main__":
