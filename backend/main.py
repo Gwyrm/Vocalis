@@ -30,22 +30,33 @@ MODEL_PATH = os.getenv(
 )
 
 SYSTEM_PROMPT = (
-    "Tu es un assistant medical specialise dans la redaction d'ordonnances. "
-    "Tu collectes des informations sur le patient de maniere conversationnelle et naturelle. "
-    "Quand l'utilisateur te fournit une information, tu l'extrais et la stockes. "
-    "Si des informations requises manquent, demande-les poliment en fonction du contexte. "
-    "Les informations requises sont: nom du patient, age/date de naissance, diagnostic, "
-    "medicament, posologie, duree du traitement, instructions speciales. "
-    "Reponds en francais, de maniere professionnelle et empathique."
+    "Tu es un assistant medical specialise dans la redaction d'ordonnances.\n\n"
+    "Ton role:\n"
+    "1. Collecter les informations du patient de maniere conversationnelle\n"
+    "2. Confirmer chaque information recue\n"
+    "3. Demander les informations manquantes\n"
+    "4. Rester professionnel et empathique\n\n"
+    "Informations OBLIGATOIRES:\n"
+    "- Nom du patient\n"
+    "- Age ou date de naissance\n"
+    "- Diagnostic\n"
+    "- Medicament\n"
+    "- Posologie (dosage et frequence)\n"
+    "- Duree du traitement\n"
+    "- Instructions speciales (si applicables)\n\n"
+    "Reponds en francais. Sois clair et concis."
 )
 
 COLLECTION_PROMPT_TEMPLATE = (
-    "Tu collectes des informations medicales pour une ordonnance. "
-    "L'utilisateur a fourni les informations suivantes:\n{collected_data}\n"
-    "Le dernier message de l'utilisateur est: {user_message}\n"
-    "Les informations manquantes requises sont: {missing_fields}\n"
-    "Reponds en francais. Extrait les nouvelles informations du dernier message et "
-    "demande poliment les informations manquantes. Sois concis et empathique."
+    "Tu es un assistant medical qui collecte les informations pour une ordonnance.\n\n"
+    "Informations collectees jusqu'a present:\n{collected_data}\n\n"
+    "Dernier message du patient: {user_message}\n\n"
+    "Informations encore manquantes: {missing_fields}\n\n"
+    "Instructions:\n"
+    "1. Confirme les informations que tu as compris du dernier message\n"
+    "2. Demande poliment les informations manquantes\n"
+    "3. Sois concis et clair\n"
+    "4. Reponds en francais\n"
 )
 
 PRESCRIPTION_GENERATION_PROMPT_TEMPLATE = (
@@ -232,46 +243,54 @@ def extract_prescription_data_from_message(
     if llm is None:
         return current_data
 
+    # Improved extraction prompt - more direct and simpler
     extraction_prompt = (
-        f"{SYS_TAG}\nTu es un expert en extraction d'informations medicales. "
-        f"Extrait les informations medicales du texte fourni et retourne-les en JSON. "
-        f"Les cles JSON doivent etre: patientName, patientAge, diagnosis, medication, dosage, duration, specialInstructions. "
-        f"Ne retourne que les cles pour les informations trouvees. {EOS_TAG}\n"
-        f"{USER_TAG}\nTexte a analyser: {text}{EOS_TAG}\n"
+        f"{SYS_TAG}\nTu es un assistant medical. "
+        f"Extrait UNIQUEMENT les informations medicales du message et retourne JSON. "
+        f"Cles possibles: patientName (nom patient), patientAge (age/DOB), diagnosis (diagnostic), "
+        f"medication (medicament), dosage (posologie), duration (duree), specialInstructions (instructions). "
+        f"Retourne SEULEMENT le JSON, rien d'autre.{EOS_TAG}\n"
+        f"{USER_TAG}\nExtraire du texte: {text}{EOS_TAG}\n"
         f"{ASST_TAG}\n"
     )
 
     try:
         output = llm(
             extraction_prompt,
-            max_tokens=256,
-            temperature=0.3,
+            max_tokens=200,
+            temperature=0.1,  # Lower temperature for more consistent extraction
             top_p=0.9,
-            stop=[EOS_TAG],
+            stop=[EOS_TAG, "```"],
             echo=False
         )
         response_text = output["choices"][0]["text"].strip()
 
+        # Try to extract JSON from response (handle markdown code blocks)
+        if "```" in response_text:
+            response_text = response_text.split("```")[1]
+            if response_text.startswith("json"):
+                response_text = response_text[4:]
+
+        response_text = response_text.strip()
+
         # Parse JSON response
-        try:
-            extracted = json.loads(response_text)
-            # Update current_data with extracted information
-            if "patientName" in extracted and extracted["patientName"]:
-                current_data.patientName = extracted["patientName"]
-            if "patientAge" in extracted and extracted["patientAge"]:
-                current_data.patientAge = extracted["patientAge"]
-            if "diagnosis" in extracted and extracted["diagnosis"]:
-                current_data.diagnosis = extracted["diagnosis"]
-            if "medication" in extracted and extracted["medication"]:
-                current_data.medication = extracted["medication"]
-            if "dosage" in extracted and extracted["dosage"]:
-                current_data.dosage = extracted["dosage"]
-            if "duration" in extracted and extracted["duration"]:
-                current_data.duration = extracted["duration"]
-            if "specialInstructions" in extracted and extracted["specialInstructions"]:
-                current_data.specialInstructions = extracted["specialInstructions"]
-        except json.JSONDecodeError:
-            logger.warning(f"Failed to parse JSON from extraction: {response_text}")
+        if response_text.startswith("{"):
+            try:
+                extracted = json.loads(response_text)
+                logger.info(f"Extracted data: {extracted}")
+
+                # Update current_data with extracted information
+                for key in ["patientName", "patientAge", "diagnosis", "medication",
+                           "dosage", "duration", "specialInstructions"]:
+                    if key in extracted and extracted[key]:
+                        value = str(extracted[key]).strip()
+                        if value and value.lower() not in ["none", "null", "n/a"]:
+                            setattr(current_data, key, value)
+                            logger.info(f"Set {key} = {value}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse JSON: {response_text[:100]} - {e}")
+        else:
+            logger.warning(f"Response is not JSON: {response_text[:100]}")
 
     except Exception as e:
         logger.error(f"Error extracting prescription data: {e}")
