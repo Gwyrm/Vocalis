@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart'; // For kIsWeb
+import 'models/prescription_data.dart';
 
 class ApiService {
   // Check for environment variable set via --dart-define (e.g. --dart-define=API_URL=https://api.example.com)
@@ -71,6 +72,65 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Error generating PDF: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> collectPrescriptionInfo(
+    PrescriptionData currentData,
+    String userInput,
+  ) async {
+    final url = Uri.parse('$baseUrl/api/collect-prescription-info');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'currentData': currentData.toJson(),
+          'userInput': userInput,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else if (response.statusCode == 503) {
+        throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
+      } else {
+        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+        throw Exception('Erreur: $detail (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Erreur de connexion : $e');
+    }
+  }
+
+  Future<String> generatePrescription(PrescriptionData data) async {
+    final url = Uri.parse('$baseUrl/api/generate-prescription');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'data': data.toJson(),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = jsonDecode(response.body);
+        return responseData['prescription'] ?? '';
+      } else if (response.statusCode == 503) {
+        throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
+      } else if (response.statusCode == 400) {
+        final detail = jsonDecode(response.body)['detail'] ?? 'Données incomplètes';
+        throw Exception(detail);
+      } else {
+        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+        throw Exception('Erreur: $detail (${response.statusCode})');
+      }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Erreur de génération : $e');
     }
   }
 }
