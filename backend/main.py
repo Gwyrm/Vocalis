@@ -331,35 +331,28 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
             if not value or value.lower().strip() in ['vide', 'absent', 'aucun', 'none', 'none (since no', '', '[]', 'n/a']:
                 continue
 
-            # Map to fields using exact key matching first
+            # Map to fields using exact key matching - ALWAYS UPDATE
             if key == 'nom':
-                if not current_data.patientName:
-                    current_data.patientName = value
-                    logger.info(f"Extracted name: {value}")
+                current_data.patientName = value
+                logger.info(f"Extracted name: {value}")
             elif key == 'age':
-                if not current_data.patientAge:
-                    current_data.patientAge = value
-                    logger.info(f"Extracted age: {value}")
+                current_data.patientAge = value
+                logger.info(f"Extracted age: {value}")
             elif key == 'diagnostic':
-                if not current_data.diagnosis:
-                    current_data.diagnosis = value
-                    logger.info(f"Extracted diagnosis: {value}")
+                current_data.diagnosis = value
+                logger.info(f"Extracted diagnosis: {value}")
             elif key == 'medicament':
-                if not current_data.medication:
-                    current_data.medication = value
-                    logger.info(f"Extracted medication: {value}")
+                current_data.medication = value
+                logger.info(f"Extracted medication: {value}")
             elif key == 'dosage' or key == 'dosologie' or key == 'posologie':
-                if not current_data.dosage:
-                    current_data.dosage = value
-                    logger.info(f"Extracted dosage: {value}")
+                current_data.dosage = value
+                logger.info(f"Extracted dosage: {value}")
             elif key == 'duree' or key == 'durée' or key == 'duration':
-                if not current_data.duration:
-                    current_data.duration = value
-                    logger.info(f"Extracted duration: {value}")
+                current_data.duration = value
+                logger.info(f"Extracted duration: {value}")
             elif key == 'instructions':
-                if not current_data.specialInstructions:
-                    current_data.specialInstructions = value
-                    logger.info(f"Extracted instructions: {value}")
+                current_data.specialInstructions = value
+                logger.info(f"Extracted instructions: {value}")
 
     except Exception as e:
         logger.error(f"Extraction error: {e}")
