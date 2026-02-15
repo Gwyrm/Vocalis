@@ -27,7 +27,7 @@ class ApiService {
     return _baseUrlLocal; 
   }
 
-  Future<String> chat(String message) async {
+  Future<Map<String, dynamic>> chat(String message) async {
     final url = Uri.parse('$baseUrl/api/chat');
     try {
       final response = await http.post(
@@ -38,7 +38,7 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        return data['response'];
+        return data;
       } else if (response.statusCode == 503) {
         throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
       } else if (response.statusCode == 504) {
@@ -53,25 +53,29 @@ class ApiService {
     }
   }
 
-  Future<Uint8List> generatePdf(String content, String signatureBase64) async {
+  Future<Uint8List> generatePdf(String signatureBase64) async {
     final url = Uri.parse('$baseUrl/api/generate-pdf');
     try {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'content': content,
           'signature_base64': signatureBase64,
         }),
       );
 
       if (response.statusCode == 200) {
         return response.bodyBytes;
+      } else if (response.statusCode == 400) {
+        final detail = jsonDecode(response.body)['detail'] ?? 'Données incomplètes';
+        throw Exception(detail);
       } else {
-        throw Exception('Failed to generate PDF: ${response.statusCode}');
+        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+        throw Exception('Erreur PDF: $detail (${response.statusCode})');
       }
     } catch (e) {
-      throw Exception('Error generating PDF: $e');
+      if (e is Exception) rethrow;
+      throw Exception('Erreur génération PDF: $e');
     }
   }
 

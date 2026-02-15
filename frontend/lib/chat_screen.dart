@@ -96,29 +96,35 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      // Call collect-prescription-info endpoint
-      final response = await _apiService.collectPrescriptionInfo(
-        _prescriptionData,
-        message,
-      );
+      // Call simplified chat endpoint
+      final response = await _apiService.chat(message);
 
       // Update prescription data from response
-      final collectedData = PrescriptionData.fromJson(response['collectedData']);
-      _prescriptionData = collectedData;
+      if (response['prescription_data'] != null) {
+        _prescriptionData = PrescriptionData.fromJson(response['prescription_data']);
+      }
 
       // Add AI response to messages
       setState(() {
         _messages.add({
           'role': 'assistant',
-          'content': response['message'],
+          'content': response['response'] ?? 'Pas de réponse',
         });
 
         // Check if collection is complete
-        if (response['status'] == 'complete') {
+        if (response['is_complete'] == true) {
           _messages.add({
             'role': 'system',
-            'content': 'Toutes les informations requises ont été collectées! '
-                'Cliquez sur "Générer l\'ordonnance" pour passer à l\'étape suivante.',
+            'content': '✓ Toutes les informations requises ont été collectées! '
+                'Cliquez sur le bouton "Générer ordonnance" pour passer à la suite.',
+          });
+        } else if (response['missing_fields'] != null &&
+                   (response['missing_fields'] as List).isNotEmpty) {
+          // Show missing fields summary
+          final missing = (response['missing_fields'] as List).join(', ');
+          _messages.add({
+            'role': 'system',
+            'content': 'Informations manquantes: $missing',
           });
         }
       });
@@ -154,7 +160,8 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     try {
-      final prescription = await _apiService.generatePrescription(_prescriptionData);
+      // Generate prescription text locally from collected data
+      final prescription = _formatPrescriptionText(_prescriptionData);
       setState(() {
         _generatedPrescription = prescription;
         _prescriptionController.text = prescription;
@@ -171,6 +178,30 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  String _formatPrescriptionText(PrescriptionData data) {
+    return '''ORDONNANCE MEDICALE
+
+Patient: ${data.patientName ?? 'N/A'}
+Âge: ${data.patientAge ?? 'N/A'}
+
+DIAGNOSTIC:
+${data.diagnosis ?? 'N/A'}
+
+MEDICAMENT:
+${data.medication ?? 'N/A'}
+
+POSOLOGIE:
+${data.dosage ?? 'N/A'}
+
+DUREE:
+${data.duration ?? 'N/A'}
+
+INSTRUCTIONS SPECIALES:
+${data.specialInstructions ?? 'N/A'}
+
+Date: ${DateTime.now().toLocal().toString().split(' ')[0]}''';
   }
 
   void _proceedToSigning() {
@@ -206,6 +237,20 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _generateAndDownloadPdf() async {
     try {
+      // Verify data is complete
+      if (!_prescriptionData.isComplete()) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Données incomplètes: ${_prescriptionData.getMissingRequiredFields().join(", ")}',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       // Get signature as png bytes
       final signatureBytes = await _signatureController.toPngBytes();
       if (signatureBytes == null) {
@@ -219,15 +264,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
       final signatureBase64 = base64Encode(signatureBytes);
 
-      // Call API
+      // Call API - now backend generates prescription from session data
       setState(() {
         _isLoading = true;
       });
 
-      final pdfBytes = await _apiService.generatePdf(
-        _generatedPrescription,
-        signatureBase64,
-      );
+      final pdfBytes = await _apiService.generatePdf(signatureBase64);
 
       // Handle download/save
       if (kIsWeb) {
