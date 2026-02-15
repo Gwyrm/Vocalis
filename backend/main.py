@@ -174,6 +174,19 @@ class PrescriptionData(BaseModel):
             lines.append(f"• Instructions: {self.specialInstructions}")
         return "\n".join(lines) if lines else "Aucune information collectée"
 
+    def toJson(self) -> dict:
+        """Alias for model_dump for compatibility"""
+        return self.model_dump()
+
+    @classmethod
+    def fromJson(cls, data: dict) -> "PrescriptionData":
+        """Alias for model_validate for compatibility"""
+        return cls.model_validate(data)
+
+    def copyWith(self, **kwargs) -> "PrescriptionData":
+        """Create a copy with updated fields"""
+        return self.model_copy(update=kwargs)
+
 
 class CollectInfoRequest(BaseModel):
     """Request to collect prescription information"""
