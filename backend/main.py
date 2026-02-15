@@ -21,6 +21,7 @@ import json
 from datetime import datetime
 import sqlite3
 import uuid
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -270,53 +271,116 @@ def format_chat_prompt(user_message: str) -> str:
 
 
 def extract_data_from_message(text: str, current_data: PrescriptionData) -> PrescriptionData:
-    """Extract prescription data from user message using LLM"""
-    if llm is None:
-        return current_data
+    """Extract prescription data from user message using pattern matching"""
+    # Use pattern matching to extract medical information from text
+    # This is reliable and works well with medical terminology
 
-    # Build prompt for LLM to extract medical information in JSON format
-    prompt = (
-        f"<|system|>\nExtrais les donnees medicales et reponds EN JSON UNIQUEMENT.\n"
-        f"Champs: patientName, patientAge, diagnosis, medication, dosage, duration, specialInstructions\n"
-        f"Mets null si absent. Ne reponds QUE avec du JSON valide.</s>\n"
-        f"<|user|>\nTexte: {text}</s>\n"
-        f"<|assistant|>\n"
-    )
+    logger.info(f"Extracting from: {text}")
 
-    try:
-        output = llm(
-            prompt,
-            max_tokens=250,
-            temperature=0.0,  # Temperature 0 for consistency
-            top_p=0.9,
-            stop=["</s>"],
-            echo=False
-        )
-        response = output["choices"][0]["text"].strip()
-        logger.info(f"LLM extraction response: {response}")
+    # Patient name: Look for capitalized words (but not common words)
+    name_patterns = [
+        r'(?:patient|patiente|nom)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
+        r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*,',
+    ]
+    for pattern in name_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            name = match.group(1)
+            if current_data.patientName is None:
+                current_data.patientName = name
+                logger.info(f"Extracted patientName: {name}")
+            break
 
-        # Try to extract JSON from response
-        extracted = None
-        if "{" in response and "}" in response:
-            try:
-                json_str = response[response.find("{"):response.rfind("}")+1]
-                extracted = json.loads(json_str)
-                logger.info(f"Successfully extracted JSON")
-            except json.JSONDecodeError as e:
-                logger.warning(f"JSON parse failed: {e}")
+    # Patient age: Look for "age:", numbers with "ans", or "DOB"
+    age_patterns = [
+        r'(?:age|ans)[\s:]*(\d+)\s*ans',
+        r'\b(\d+)\s+ans\b',
+        r'(?:age)[\s:]*(\d+)',
+    ]
+    for pattern in age_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            age_value = match.group(1)
+            age_str = f"{age_value} ans"
+            if current_data.patientAge is None:
+                current_data.patientAge = age_str
+                logger.info(f"Extracted patientAge: {age_str}")
+            break
 
-        # If we got extracted data, update current_data
-        if extracted:
-            for key in ["patientName", "patientAge", "diagnosis", "medication",
-                       "dosage", "duration", "specialInstructions"]:
-                if key in extracted and extracted[key]:
-                    value = str(extracted[key]).strip()
-                    if value and value.lower() not in ["none", "null", "n/a", ""]:
-                        setattr(current_data, key, value)
-                        logger.info(f"Extracted {key}: {value}")
+    # Diagnosis: Look for medical condition keywords
+    diag_keywords = [
+        'hypertension', 'diabète', 'infection', 'cancer', 'asthme', 'bronchite',
+        'pneumonie', 'grippe', 'rhume', 'arthrite', 'arthrose', 'dépression',
+        'anxiété', 'cholestérol', 'gastrite', 'ulcère', 'hépatite', 'cirrhose'
+    ]
+    for keyword in diag_keywords:
+        if keyword in text.lower():
+            if current_data.diagnosis is None:
+                # Try to get the full diagnosis context
+                pattern = rf'({keyword}[^,.\n]*)'
+                match = re.search(pattern, text, re.IGNORECASE)
+                diagnosis = match.group(1) if match else keyword
+                current_data.diagnosis = diagnosis
+                logger.info(f"Extracted diagnosis: {diagnosis}")
+            break
 
-    except Exception as e:
-        logger.error(f"Extraction error: {e}")
+    # Medication: Look for common drug names or "médicament:"
+    med_keywords = [
+        'lisinopril', 'enalapril', 'metformine', 'glibenclamide', 'aspirin',
+        'ibuprofen', 'paracetamol', 'amoxicilline', 'panadol', 'doliprane',
+        'morphine', 'codéine', 'atorvastatine', 'simvastatine', 'rosuvastatine'
+    ]
+    for keyword in med_keywords:
+        if keyword in text.lower():
+            if current_data.medication is None:
+                # Try to get medication with dose
+                pattern = rf'({keyword}[^,.\n]*?(?:mg|g|ml|comprimé|comprimés)?)'
+                match = re.search(pattern, text, re.IGNORECASE)
+                med = match.group(1) if match else keyword
+                current_data.medication = med
+                logger.info(f"Extracted medication: {med}")
+            break
+
+    # Dosage: Look for "mg/ml", frequencies like "une fois par jour"
+    dosage_patterns = [
+        r'(\d+\s*(?:mg|g|ml)\s*[^,.]*)(?:fois|par)?',
+        r'((?:une|deux|trois|quatre)\s+fois\s+par\s+(?:jour|semaine|mois))',
+        r'(\d+\s*mg[^,.\n]*)',
+    ]
+    for pattern in dosage_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match and current_data.dosage is None:
+            dosage = match.group(1).strip()
+            current_data.dosage = dosage
+            logger.info(f"Extracted dosage: {dosage}")
+            break
+
+    # Duration: Look for time expressions like "3 mois", "1 semaine", etc.
+    duration_patterns = [
+        r'(?:traitement|pendant|durée|pour)[\s:]*(\d+\s*(?:jours|jour|semaines|semaine|mois|ans))',
+        r'(\d+\s*(?:jours|jour|semaines|semaine|mois|ans))\s*(?:de\s+traitement)?',
+    ]
+    for pattern in duration_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match and current_data.duration is None:
+            duration = match.group(1).strip()
+            current_data.duration = duration
+            logger.info(f"Extracted duration: {duration}")
+            break
+
+    # Special instructions: Look for "à", "avec", "pendant", "avant", "après"
+    instr_patterns = [
+        r'(?:à|avec|pendant|avant|après|instructions?)[\s:]+([^.,\n]+(?:matin|soir|jeun|repas|jour|nuit|jour|eau)[^.,\n]*)',
+        r'((?:matin|soir|jeun|repas)[^.,\n]*)',
+    ]
+    for pattern in instr_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match and current_data.specialInstructions is None:
+            instr = match.group(1).strip()
+            if len(instr) > 3:  # Avoid very short matches
+                current_data.specialInstructions = instr
+                logger.info(f"Extracted specialInstructions: {instr}")
+            break
 
     return current_data
 
