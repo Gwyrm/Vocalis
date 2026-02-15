@@ -9,7 +9,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 import uvicorn
-from llama_cpp import Llama
+import requests
+import urllib3
 from fpdf import FPDF
 import base64
 import os
@@ -30,13 +31,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("vocalis-backend")
 
-# Global model reference
-llm = None
-
-MODEL_PATH = os.getenv(
-    "MODEL_PATH",
-    os.path.join(os.path.dirname(__file__), "models", "tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
-)
+# Ollama configuration
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
+ollama_available = False
 
 # Database path
 DB_PATH = os.path.join(os.path.dirname(__file__), "prescriptions.db")
@@ -270,152 +268,124 @@ def format_chat_prompt(user_message: str) -> str:
     )
 
 
+def call_ollama(prompt: str, max_tokens: int = 100) -> str:
+    """Call Ollama API and return the response"""
+    try:
+        url = f"{OLLAMA_BASE_URL}/api/generate"
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "temperature": 0.1,
+            "top_p": 0.9,
+        }
+        response = requests.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("response", "").strip()
+    except Exception as e:
+        logger.error(f"Ollama API error: {e}")
+        return ""
+
+
 def extract_data_from_message(text: str, current_data: PrescriptionData) -> PrescriptionData:
-    """Extract prescription data from user message using pattern matching"""
-    # Use pattern matching to extract medical information from text
-    # This is reliable and works well with medical terminology
+    """Extract prescription data using Ollama with clear prompt"""
+    if not ollama_available:
+        logger.warning("Ollama not available, skipping extraction")
+        return current_data
 
-    logger.info(f"Extracting from: {text}")
+    logger.info(f"Extracting from text: {text}")
 
-    # Patient name: Look for capitalized words (but not common words)
-    name_patterns = [
-        r'(?:patient|patiente|nom)[\s:]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)',
-        r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*,',
-    ]
-    for pattern in name_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            name = match.group(1)
-            if current_data.patientName is None:
-                current_data.patientName = name
-                logger.info(f"Extracted patientName: {name}")
-            break
+    # Clear prompt for Mistral
+    extraction_prompt = (
+        f"Texte medical:\n{text}\n\n"
+        f"EXTRAIT et RETOURNE SEULEMENT ces 7 lignes:\n"
+        f"Nom: [nom complet ou vide]\n"
+        f"Age: [age en annees ou vide]\n"
+        f"Diagnostic: [condition medicale ou vide]\n"
+        f"Medicament: [nom du medicament ou vide]\n"
+        f"Dosage: [dose et frequence ou vide]\n"
+        f"Duree: [duree du traitement ou vide]\n"
+        f"Instructions: [instructions speciales ou vide]\n\n"
+        f"Reponds EXACTEMENT au format ci-dessus, une ligne par ligne."
+    )
 
-    # Patient age: Look for "age:", numbers with "ans", or "DOB"
-    age_patterns = [
-        r'(?:age|ans)[\s:]*(\d+)\s*ans',
-        r'\b(\d+)\s+ans\b',
-        r'(?:age)[\s:]*(\d+)',
-    ]
-    for pattern in age_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            age_value = match.group(1)
-            age_str = f"{age_value} ans"
-            if current_data.patientAge is None:
-                current_data.patientAge = age_str
-                logger.info(f"Extracted patientAge: {age_str}")
-            break
+    try:
+        response = call_ollama(extraction_prompt, max_tokens=150)
+        logger.info(f"Ollama response:\n{response}")
 
-    # Diagnosis: Look for medical condition keywords
-    diag_keywords = [
-        'hypertension', 'diabète', 'infection', 'cancer', 'asthme', 'bronchite',
-        'pneumonie', 'grippe', 'rhume', 'arthrite', 'arthrose', 'dépression',
-        'anxiété', 'cholestérol', 'gastrite', 'ulcère', 'hépatite', 'cirrhose'
-    ]
-    for keyword in diag_keywords:
-        if keyword in text.lower():
-            if current_data.diagnosis is None:
-                # Try to get the full diagnosis context
-                pattern = rf'({keyword}[^,.\n]*)'
-                match = re.search(pattern, text, re.IGNORECASE)
-                diagnosis = match.group(1) if match else keyword
-                current_data.diagnosis = diagnosis
-                logger.info(f"Extracted diagnosis: {diagnosis}")
-            break
+        # Parse line by line with more specific matching
+        for line in response.split('\n'):
+            line = line.strip()
+            if ':' not in line:
+                continue
 
-    # Medication: Look for common drug names or "médicament:"
-    med_keywords = [
-        'lisinopril', 'enalapril', 'metformine', 'glibenclamide', 'aspirin',
-        'ibuprofen', 'paracetamol', 'amoxicilline', 'panadol', 'doliprane',
-        'morphine', 'codéine', 'atorvastatine', 'simvastatine', 'rosuvastatine'
-    ]
-    for keyword in med_keywords:
-        if keyword in text.lower():
-            if current_data.medication is None:
-                # Try to get medication with dose
-                pattern = rf'({keyword}[^,.\n]*?(?:mg|g|ml|comprimé|comprimés)?)'
-                match = re.search(pattern, text, re.IGNORECASE)
-                med = match.group(1) if match else keyword
-                current_data.medication = med
-                logger.info(f"Extracted medication: {med}")
-            break
+            parts = line.split(':', 1)
+            if len(parts) != 2:
+                continue
 
-    # Dosage: Look for "mg/ml", frequencies like "une fois par jour"
-    dosage_patterns = [
-        r'(\d+\s*(?:mg|g|ml)\s*[^,.]*)(?:fois|par)?',
-        r'((?:une|deux|trois|quatre)\s+fois\s+par\s+(?:jour|semaine|mois))',
-        r'(\d+\s*mg[^,.\n]*)',
-    ]
-    for pattern in dosage_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match and current_data.dosage is None:
-            dosage = match.group(1).strip()
-            current_data.dosage = dosage
-            logger.info(f"Extracted dosage: {dosage}")
-            break
+            key = parts[0].strip().lower()
+            value = parts[1].strip()
 
-    # Duration: Look for time expressions like "3 mois", "1 semaine", etc.
-    duration_patterns = [
-        r'(?:traitement|pendant|durée|pour)[\s:]*(\d+\s*(?:jours|jour|semaines|semaine|mois|ans))',
-        r'(\d+\s*(?:jours|jour|semaines|semaine|mois|ans))\s*(?:de\s+traitement)?',
-    ]
-    for pattern in duration_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match and current_data.duration is None:
-            duration = match.group(1).strip()
-            current_data.duration = duration
-            logger.info(f"Extracted duration: {duration}")
-            break
+            # Skip empty/placeholder values
+            if not value or value.lower().strip() in ['vide', 'absent', 'aucun', 'none', 'none (since no', '', '[]', 'n/a']:
+                continue
 
-    # Special instructions: Look for "à", "avec", "pendant", "avant", "après"
-    instr_patterns = [
-        r'(?:à|avec|pendant|avant|après|instructions?)[\s:]+([^.,\n]+(?:matin|soir|jeun|repas|jour|nuit|jour|eau)[^.,\n]*)',
-        r'((?:matin|soir|jeun|repas)[^.,\n]*)',
-    ]
-    for pattern in instr_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match and current_data.specialInstructions is None:
-            instr = match.group(1).strip()
-            if len(instr) > 3:  # Avoid very short matches
-                current_data.specialInstructions = instr
-                logger.info(f"Extracted specialInstructions: {instr}")
-            break
+            # Map to fields using exact key matching first
+            if key == 'nom':
+                if not current_data.patientName:
+                    current_data.patientName = value
+                    logger.info(f"Extracted name: {value}")
+            elif key == 'age':
+                if not current_data.patientAge:
+                    current_data.patientAge = value
+                    logger.info(f"Extracted age: {value}")
+            elif key == 'diagnostic':
+                if not current_data.diagnosis:
+                    current_data.diagnosis = value
+                    logger.info(f"Extracted diagnosis: {value}")
+            elif key == 'medicament':
+                if not current_data.medication:
+                    current_data.medication = value
+                    logger.info(f"Extracted medication: {value}")
+            elif key == 'dosage' or key == 'dosologie' or key == 'posologie':
+                if not current_data.dosage:
+                    current_data.dosage = value
+                    logger.info(f"Extracted dosage: {value}")
+            elif key == 'duree' or key == 'durée' or key == 'duration':
+                if not current_data.duration:
+                    current_data.duration = value
+                    logger.info(f"Extracted duration: {value}")
+            elif key == 'instructions':
+                if not current_data.specialInstructions:
+                    current_data.specialInstructions = value
+                    logger.info(f"Extracted instructions: {value}")
+
+    except Exception as e:
+        logger.error(f"Extraction error: {e}")
 
     return current_data
 
 
 def generate_response(user_message: str, prescription_data: PrescriptionData) -> str:
-    """Generate response using LLM"""
-    if llm is None:
-        return "Erreur: Modele non charge"
+    """Generate conversational response using Ollama"""
+    if not ollama_available:
+        return "Erreur: Ollama non disponible"
 
     collected = prescription_data.format_display()
     missing = ", ".join(prescription_data.get_missing_fields()) or "Aucun"
 
-    prompt = RESPONSE_PROMPT_TEMPLATE.format(
-        collected_info=collected,
-        missing_fields=missing,
-        user_message=user_message
-    )
-
-    full_prompt = (
-        f"<|system|>\n{SYSTEM_PROMPT}</s>\n"
-        f"<|user|>\n{prompt}</s>\n"
-        f"<|assistant|>\n"
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"Informations collectees:\n{collected}\n\n"
+        f"Informations manquantes:\n{missing}\n\n"
+        f"Message utilisateur: {user_message}\n\n"
+        f"Reponds en francais. Confirme les infos recues et demande les infos manquantes."
     )
 
     try:
-        output = llm(
-            full_prompt,
-            max_tokens=256,
-            temperature=0.7,
-            top_p=0.9,
-            stop=["</s>"],
-            echo=False
-        )
-        response = output["choices"][0]["text"].strip()
-        return response
+        response = call_ollama(prompt, max_tokens=256)
+        return response if response else "Je n'ai pas pu générer une réponse."
     except Exception as e:
         logger.error(f"Response generation error: {e}")
         return f"Erreur: {str(e)}"
@@ -427,30 +397,30 @@ def generate_response(user_message: str, prescription_data: PrescriptionData) ->
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database and load model at startup"""
-    global llm, current_session_id
+    """Initialize database and check Ollama at startup"""
+    global ollama_available, current_session_id
 
     # Initialize database
     init_db()
     current_session_id = None
 
-    # Load model
-    logger.info(f"Loading model from {MODEL_PATH}...")
+    # Check Ollama availability
+    logger.info(f"Checking Ollama at {OLLAMA_BASE_URL} with model {OLLAMA_MODEL}...")
     try:
-        llm = Llama(
-            model_path=MODEL_PATH,
-            n_ctx=2048,
-            n_threads=4,
-            n_gpu_layers=0,
-            verbose=False
-        )
-        logger.info("Model loaded successfully!")
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        if response.status_code == 200:
+            ollama_available = True
+            logger.info("Ollama is available!")
+        else:
+            logger.warning(f"Ollama returned status {response.status_code}")
+            ollama_available = False
     except Exception as e:
-        logger.error(f"Failed to load model: {e}")
-        raise
+        logger.error(f"Ollama not available: {e}")
+        ollama_available = False
+
     yield
     logger.info("Shutting down...")
-    llm = None
+    ollama_available = False
 
 
 # ============================================================================
@@ -483,8 +453,9 @@ async def health_check():
     return {
         "status": "ok",
         "backend": "running",
-        "model_loaded": llm is not None,
-        "model_path": MODEL_PATH
+        "ollama_available": ollama_available,
+        "ollama_url": OLLAMA_BASE_URL,
+        "model": OLLAMA_MODEL
     }
 
 
@@ -493,10 +464,10 @@ async def chat(request: ChatRequest):
     """Main chat endpoint - handles everything"""
     logger.info(f"Chat request: {request.message[:50]}...")
 
-    if llm is None:
+    if not ollama_available:
         raise HTTPException(
             status_code=503,
-            detail="Le modele n'est pas encore charge."
+            detail="Ollama n'est pas disponible. Veuillez démarrer Ollama."
         )
 
     try:
