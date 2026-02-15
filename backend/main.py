@@ -31,6 +31,7 @@ MODEL_PATH = os.getenv(
 
 SYSTEM_PROMPT = (
     "Tu es un assistant medical specialise dans la redaction d'ordonnances.\n\n"
+    "LANGUE: Tu DOIS repondre UNIQUEMENT en FRANCAIS. Jamais en espagnol, anglais ou autre langue.\n\n"
     "Ton role:\n"
     "1. Collecter les informations du patient de maniere conversationnelle\n"
     "2. Confirmer chaque information recue\n"
@@ -44,19 +45,20 @@ SYSTEM_PROMPT = (
     "- Posologie (dosage et frequence)\n"
     "- Duree du traitement\n"
     "- Instructions speciales (si applicables)\n\n"
-    "Reponds en francais. Sois clair et concis."
+    "REGLE IMPORTANTE: Reponds UNIQUEMENT en francais. Sois clair et concis."
 )
 
 COLLECTION_PROMPT_TEMPLATE = (
     "Tu es un assistant medical qui collecte les informations pour une ordonnance.\n\n"
+    "LANGUE OBLIGATOIRE: FRANCAIS UNIQUEMENT - Ne reponds JAMAIS en espagnol, anglais ou autre langue.\n\n"
     "Informations collectees jusqu'a present:\n{collected_data}\n\n"
     "Dernier message du patient: {user_message}\n\n"
     "Informations encore manquantes: {missing_fields}\n\n"
-    "Instructions:\n"
+    "Instructions (EN FRANCAIS):\n"
     "1. Confirme les informations que tu as compris du dernier message\n"
     "2. Demande poliment les informations manquantes\n"
     "3. Sois concis et clair\n"
-    "4. Reponds en francais\n"
+    "4. REPONDRE UNIQUEMENT EN FRANCAIS - C'est TRES IMPORTANT\n"
 )
 
 PRESCRIPTION_GENERATION_PROMPT_TEMPLATE = (
@@ -232,6 +234,50 @@ def format_chat_prompt(user_message: str) -> str:
     )
 
 
+def ensure_french_response(text: str) -> str:
+    """
+    Ensure response is in French. If it detects Spanish or other languages,
+    requests a French translation from the LLM.
+    """
+    # Spanish indicators
+    spanish_patterns = [
+        "¿", "¡",  # Spanish punctuation
+        "hola", "buenos", "gracias", "por favor",
+        "me llamo", "tengo años", "cual es",
+        "el diagnostico", "la medicina"
+    ]
+
+    text_lower = text.lower()
+    spanish_count = sum(1 for pattern in spanish_patterns if pattern in text_lower)
+
+    # If more than 2 Spanish patterns found, ask for French version
+    if spanish_count > 2:
+        logger.warning(f"Detected Spanish response, requesting French translation")
+        if llm is not None:
+            try:
+                translation_prompt = (
+                    f"{SYS_TAG}\nTu es un traducteur. Traduis ce texte de l'espagnol au francais.\n"
+                    f"Reponds UNIQUEMENT avec la traduction francaise, rien d'autre.{EOS_TAG}\n"
+                    f"{USER_TAG}\nTexte espagnol: {text}{EOS_TAG}\n"
+                    f"{ASST_TAG}\n"
+                )
+                output = llm(
+                    translation_prompt,
+                    max_tokens=256,
+                    temperature=0.3,
+                    stop=[EOS_TAG],
+                    echo=False
+                )
+                translated = output["choices"][0]["text"].strip()
+                logger.info(f"Translated to French: {translated[:100]}")
+                return translated
+            except Exception as e:
+                logger.error(f"Translation failed: {e}")
+                return text
+
+    return text
+
+
 def extract_prescription_data_from_message(
     text: str, current_data: PrescriptionData
 ) -> PrescriptionData:
@@ -315,11 +361,15 @@ def build_info_request_prompt(
         missing_fields=missing_str
     )
 
-    return (
+    full_prompt = (
         f"{SYS_TAG}\n{SYSTEM_PROMPT}{EOS_TAG}\n"
         f"{USER_TAG}\n{prompt}{EOS_TAG}\n"
         f"{ASST_TAG}\n"
     )
+
+    logger.debug(f"Full prompt:\n{full_prompt[:500]}...")
+
+    return full_prompt
 
 
 @app.post("/api/chat")
@@ -346,6 +396,10 @@ async def chat(request: ChatRequest):
         )
 
         response_text = output["choices"][0]["text"].strip()
+
+        # Ensure response is in French
+        response_text = ensure_french_response(response_text)
+
         logger.info(f"Generated response ({len(response_text)} chars)")
         return {"response": response_text}
 
@@ -395,6 +449,10 @@ async def collect_prescription_info(request: CollectInfoRequest):
         )
 
         message = output["choices"][0]["text"].strip()
+
+        # Ensure response is in French
+        message = ensure_french_response(message)
+
         logger.info(f"Generated guidance message ({len(message)} chars)")
 
         return CollectInfoResponse(
@@ -462,6 +520,10 @@ async def generate_prescription(request: GeneratePrescriptionRequest):
         )
 
         prescription_text = output["choices"][0]["text"].strip()
+
+        # Ensure prescription is in French
+        prescription_text = ensure_french_response(prescription_text)
+
         logger.info(f"Generated prescription ({len(prescription_text)} chars)")
 
         return GeneratePrescriptionResponse(prescription=prescription_text)
