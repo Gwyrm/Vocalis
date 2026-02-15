@@ -476,4 +476,61 @@ flutter pub get
 
 ---
 
+---
+
+## ⚡ Commandes Rapides
+
+### Scripts de Démarrage
+
+```bash
+# Vérifier les prérequis
+./check-setup.sh
+
+# Lancer backend + frontend
+./start-all.sh
+
+# Ou lancer séparément
+./start-backend.sh    # Terminal 1
+./start-frontend.sh   # Terminal 2
+```
+
+### Tests
+
+```bash
+cd backend
+pytest test_main.py test_advanced.py -v
+```
+
+### Nettoyage & Réinitialisation
+
+```bash
+# Backend
+cd backend
+rm -rf venv __pycache__
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Frontend
+cd frontend
+flutter clean
+flutter pub get
+```
+
+### Debugging
+
+```bash
+# Health check
+curl http://localhost:8080/api/health
+
+# Logs détaillés backend
+cd backend
+PYTHONUNBUFFERED=1 python main.py
+
+# Logs Flutter
+flutter logs
+```
+
+---
+
 Generated: 2026-02-15
