@@ -1,4 +1,12 @@
-from fastapi import FastAPI, HTTPException
+#!/usr/bin/env python3
+"""Script to generate main.py with special tokens."""
+
+SYS = "<" + "|system|" + ">"
+USR = "<" + "|user|" + ">"
+AST = "<" + "|assistant|" + ">"
+EOS = "<" + "/s" + ">"
+
+content = f'''from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -30,25 +38,20 @@ MODEL_PATH = os.getenv(
 SYSTEM_PROMPT = (
     "Tu es un assistant medical. Tu aides les medecins a rediger des ordonnances medicales. "
     "Reponds en francais, de maniere claire et professionnelle. "
-    "Fournis des prescriptions structurees avec le nom du medicament, "
-    "la posologie et la duree du traitement."
+    "Fournis des prescriptions structurees avec le nom du medicament, la posologie et la duree du traitement."
 )
 
-# TinyLlama chat template tokens (built dynamically to avoid markup issues)
-_LP = "<"
-_RP = ">"
-_PIPE = "|"
-SYS_TAG = f"{_LP}{_PIPE}system{_PIPE}{_RP}"
-USER_TAG = f"{_LP}{_PIPE}user{_PIPE}{_RP}"
-ASST_TAG = f"{_LP}{_PIPE}assistant{_PIPE}{_RP}"
-EOS_TAG = "</s>"
+SYS_TAG = "{SYS}"
+USER_TAG = "{USR}"
+ASST_TAG = "{AST}"
+EOS_TAG = "{EOS}"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Load model at startup, release at shutdown."""
     global llm
-    logger.info(f"Loading model from {MODEL_PATH}...")
+    logger.info(f"Loading model from {{MODEL_PATH}}...")
     try:
         llm = Llama(
             model_path=MODEL_PATH,
@@ -59,7 +62,7 @@ async def lifespan(app: FastAPI):
         )
         logger.info("Model loaded successfully!")
     except Exception as e:
-        logger.error(f"Failed to load model: {e}")
+        logger.error(f"Failed to load model: {{e}}")
         raise
     yield
     logger.info("Shutting down, releasing model...")
@@ -80,17 +83,17 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"status": "ok", "message": "Vocalis Backend is running"}
+    return {{"status": "ok", "message": "Vocalis Backend is running"}}
 
 
 @app.get("/api/health")
 async def health_check():
-    return {
+    return {{
         "status": "ok",
         "backend": "running",
         "model_loaded": llm is not None,
         "model_path": MODEL_PATH
-    }
+    }}
 
 
 class ChatRequest(BaseModel):
@@ -105,20 +108,20 @@ class PrescriptionRequest(BaseModel):
 def format_chat_prompt(user_message: str) -> str:
     """Format prompt using TinyLlama chat template."""
     return (
-        f"{SYS_TAG}\n{SYSTEM_PROMPT}{EOS_TAG}\n"
-        f"{USER_TAG}\n{user_message}{EOS_TAG}\n"
-        f"{ASST_TAG}\n"
+        SYS_TAG + "\\n" + SYSTEM_PROMPT + EOS_TAG + "\\n"
+        + USER_TAG + "\\n" + user_message + EOS_TAG + "\\n"
+        + ASST_TAG + "\\n"
     )
 
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    logger.info(f"Received chat request: {request.message[:50]}...")
+    logger.info(f"Received chat request: {{request.message[:50]}}...")
 
     if llm is None:
         raise HTTPException(
             status_code=503,
-            detail="Le modele n'est pas encore charge. Veuillez patienter."
+            detail="Le modele n est pas encore charge. Veuillez patienter."
         )
 
     try:
@@ -135,15 +138,12 @@ async def chat(request: ChatRequest):
         )
 
         response_text = output["choices"][0]["text"].strip()
-        logger.info(f"Generated response ({len(response_text)} chars)")
-        return {"response": response_text}
+        logger.info(f"Generated response ({{len(response_text)}} chars)")
+        return {{"response": response_text}}
 
     except Exception as e:
         logger.exception("Error during chat generation")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erreur de generation: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Erreur de generation: {{str(e)}}")
 
 
 @app.post("/api/generate-pdf")
@@ -182,24 +182,27 @@ async def generate_pdf(request: PrescriptionRequest):
                 os.remove(tmp_img_path)
 
             except Exception as e:
-                logger.error(f"Error processing signature: {e}")
+                logger.error(f"Error processing signature: {{e}}")
                 pdf.cell(200, 10, txt="[Signature Error]", ln=1)
 
         # Output PDF to temporary file
-        filename = f"prescription_{uuid.uuid4()}.pdf"
+        filename = f"prescription_{{uuid.uuid4()}}.pdf"
         filepath = os.path.join(tempfile.gettempdir(), filename)
         pdf.output(filepath)
 
-        logger.info(f"Successfully generated PDF: {filename}")
+        logger.info(f"Successfully generated PDF: {{filename}}")
         return FileResponse(filepath, filename=filename, media_type="application/pdf")
 
     except Exception as e:
         logger.exception("Error during PDF generation")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating PDF: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error generating PDF: {{str(e)}}")
 
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+'''
+
+with open("/Users/pierre/Projets/Vocalis/backend/main.py", "w") as f:
+    f.write(content)
+
+print("main.py generated successfully")

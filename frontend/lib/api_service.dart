@@ -32,16 +32,16 @@ class ApiService {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'message': message, 'model': 'mistral'}),
+        body: jsonEncode({'message': message}),
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['response'];
       } else if (response.statusCode == 503) {
-        throw Exception('Le service AI (Ollama) n\'est pas disponible. Vérifiez qu\'il est bien lancé.');
+        throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
       } else if (response.statusCode == 504) {
-        throw Exception('L\'IA met trop de temps à répondre. Le modèle est peut-être trop lourd pour votre serveur.');
+        throw Exception('L\'IA met trop de temps à répondre.');
       } else {
         final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
         throw Exception('Erreur $detail (${response.statusCode})');

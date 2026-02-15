@@ -1,6 +1,5 @@
 fastapi
 uvicorn
-httpx
+llama-cpp-python
 fpdf
 python-multipart
-ollama
