@@ -296,18 +296,18 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
 
     logger.info(f"Extracting from text: {text}")
 
-    # Clear prompt for Mistral
+    # Clear prompt for Mistral - no placeholders!
     extraction_prompt = (
-        f"Texte medical:\n{text}\n\n"
-        f"EXTRAIT et RETOURNE SEULEMENT ces 7 lignes:\n"
-        f"Nom: [nom complet ou vide]\n"
-        f"Age: [age en annees ou vide]\n"
-        f"Diagnostic: [condition medicale ou vide]\n"
-        f"Medicament: [nom du medicament ou vide]\n"
-        f"Dosage: [dose et frequence ou vide]\n"
-        f"Duree: [duree du traitement ou vide]\n"
-        f"Instructions: [instructions speciales ou vide]\n\n"
-        f"Reponds EXACTEMENT au format ci-dessus, une ligne par ligne."
+        f"Extrait ces 7 informations du texte:\n{text}\n\n"
+        f"Retourne SEULEMENT:\n"
+        f"Nom: \n"
+        f"Age: \n"
+        f"Diagnostic: \n"
+        f"Medicament: \n"
+        f"Dosage: \n"
+        f"Duree: \n"
+        f"Instructions: \n\n"
+        f"Complete chaque ligne avec la valeur extraite du texte. Si absent, laisse vide."
     )
 
     try:
