@@ -20,8 +20,6 @@ import logging
 from contextlib import asynccontextmanager
 import json
 from datetime import datetime
-import sqlite3
-import uuid
 import re
 
 # Configure logging
@@ -36,11 +34,8 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 ollama_available = False
 
-# Database path
-DB_PATH = os.path.join(os.path.dirname(__file__), "prescriptions.db")
-
-# Current session ID
-current_session_id = None
+# In-memory session storage
+session_data = {}
 
 # ============================================================================
 # PROMPTS
@@ -148,111 +143,6 @@ class GeneratePDFRequest(BaseModel):
     signature_base64: str
 
 
-# ============================================================================
-# DATABASE FUNCTIONS
-# ============================================================================
-
-def init_db():
-    """Initialize SQLite database with prescriptions table"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS prescriptions (
-            id TEXT PRIMARY KEY,
-            patient_name TEXT,
-            patient_age TEXT,
-            diagnosis TEXT,
-            medication TEXT,
-            dosage TEXT,
-            duration TEXT,
-            special_instructions TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    conn.commit()
-    conn.close()
-    logger.info("Database initialized")
-
-
-def create_new_session() -> str:
-    """Create new prescription session and return session ID"""
-    global current_session_id
-    session_id = str(uuid.uuid4())
-    current_session_id = session_id
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO prescriptions (id) VALUES (?)
-    ''', (session_id,))
-    conn.commit()
-    conn.close()
-    logger.info(f"New session created: {session_id}")
-    return session_id
-
-
-def get_session_data() -> PrescriptionData:
-    """Get session data from database"""
-    global current_session_id
-    if not current_session_id:
-        create_new_session()
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT patient_name, patient_age, diagnosis, medication, dosage, duration, special_instructions
-        FROM prescriptions WHERE id = ?
-    ''', (current_session_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    if row:
-        return PrescriptionData(
-            patientName=row['patient_name'],
-            patientAge=row['patient_age'],
-            diagnosis=row['diagnosis'],
-            medication=row['medication'],
-            dosage=row['dosage'],
-            duration=row['duration'],
-            specialInstructions=row['special_instructions']
-        )
-    return PrescriptionData()
-
-
-def update_session_data(data: PrescriptionData) -> None:
-    """Update session data in database"""
-    global current_session_id
-    if not current_session_id:
-        create_new_session()
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE prescriptions SET
-            patient_name = ?,
-            patient_age = ?,
-            diagnosis = ?,
-            medication = ?,
-            dosage = ?,
-            duration = ?,
-            special_instructions = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    ''', (
-        data.patientName,
-        data.patientAge,
-        data.diagnosis,
-        data.medication,
-        data.dosage,
-        data.duration,
-        data.specialInstructions,
-        current_session_id
-    ))
-    conn.commit()
-    conn.close()
-    logger.info(f"Session {current_session_id} updated")
 
 
 # ============================================================================
@@ -288,69 +178,152 @@ def call_ollama(prompt: str, max_tokens: int = 100) -> str:
         return ""
 
 
+def normalize_key(key: str) -> str:
+    """Normalize key by removing accents and converting to lowercase"""
+    import unicodedata
+    nfd = unicodedata.normalize('NFD', key)
+    return ''.join(c for c in nfd if unicodedata.category(c) != 'Mn').lower()
+
+
+def is_empty_response(value: str) -> bool:
+    """Check if a response indicates the field is empty/absent"""
+    if not value:
+        return True
+
+    normalized = value.lower().strip()
+
+    # List of phrases that indicate absence of information
+    empty_indicators = [
+        'vide', 'absent', 'aucun', 'aucune',
+        'none', 'pas spécifié', 'pas specifie',
+        'pas mentionné', 'pas mentionne',
+        'n/a', 'na', 'non applicable',
+        'non fourni', 'non fournie',
+        'n\'est pas', 'n\'existe pas', 'n\'y a pas',
+        '[]', 'null', 'undefined',
+        'depuis no', 'since no',  # "none (since no..."
+        'not provided', 'not specified',
+        'non indiqué', 'non indiquee',
+        'inconnu', 'inconnue',
+        'renseignement spécifique', 'renseignement specifique',
+        'consulter votre médecin', 'consulter votre medecin',
+        'consulter la notice',
+        'ne donne pas de',
+        'non spécifié', 'non specifie',
+    ]
+
+    # Check if the value starts with any empty indicator
+    for indicator in empty_indicators:
+        if normalized.startswith(indicator):
+            return True
+
+    # Check if it's mostly parentheses/explanations
+    if normalized.startswith('(') and normalized.endswith(')'):
+        return True
+
+    # Check if it's too long and contains explanation markers
+    if len(value) > 200 and ('message' in normalized or 'veuillez' in normalized):
+        return True
+
+    return False
+
+
 def extract_data_from_message(text: str, current_data: PrescriptionData) -> PrescriptionData:
-    """Extract prescription data using Ollama with clear prompt"""
+    """Extract prescription data using Ollama with improved parsing"""
     if not ollama_available:
         logger.warning("Ollama not available, skipping extraction")
         return current_data
 
-    logger.info(f"Extracting from text: {text}")
+    logger.info(f"Extracting from text: {text[:100]}...")
 
-    # Clear prompt for Mistral - no placeholders!
+    # Build context of existing data for the model
+    existing_context = []
+    if current_data.patientName:
+        existing_context.append(f"Patient actuel: {current_data.patientName}")
+    if current_data.patientAge:
+        existing_context.append(f"Age connu: {current_data.patientAge}")
+    if current_data.diagnosis:
+        existing_context.append(f"Diagnostic connu: {current_data.diagnosis}")
+    if current_data.medication:
+        existing_context.append(f"Medicament connu: {current_data.medication}")
+
+    context_str = "\n".join(existing_context) if existing_context else ""
+
+    # Improved extraction prompt with context preservation
     extraction_prompt = (
-        f"Extrait ces 7 informations du texte:\n{text}\n\n"
-        f"Retourne SEULEMENT:\n"
-        f"Nom: \n"
-        f"Age: \n"
-        f"Diagnostic: \n"
-        f"Medicament: \n"
-        f"Dosage: \n"
-        f"Duree: \n"
-        f"Instructions: \n\n"
-        f"Complete chaque ligne avec la valeur extraite du texte. Si absent, laisse vide."
+        f"Tu extrais les informations medicales d'un message.\n\n"
+    )
+
+    if context_str:
+        extraction_prompt += (
+            f"CONTEXTE (informations deja collectees):\n"
+            f"{context_str}\n\n"
+            f"Conserve ces informations et ajoute les nouvelles du message suivant.\n\n"
+        )
+
+    extraction_prompt += (
+        f"NOUVEAU MESSAGE:\n{text}\n\n"
+        f"REPONSE (7 lignes SEULEMENT):\n"
+        f"Nom:\n"
+        f"Age:\n"
+        f"Diagnostic:\n"
+        f"Medicament:\n"
+        f"Dosage:\n"
+        f"Duree:\n"
+        f"Instructions:"
     )
 
     try:
         response = call_ollama(extraction_prompt, max_tokens=150)
         logger.info(f"Ollama response:\n{response}")
 
-        # Parse line by line with more specific matching
+        # Parse line by line with improved matching
         for line in response.split('\n'):
             line = line.strip()
-            if ':' not in line:
+            if ':' not in line or not line:
                 continue
 
             parts = line.split(':', 1)
             if len(parts) != 2:
                 continue
 
-            key = parts[0].strip().lower()
+            key = parts[0].strip()
             value = parts[1].strip()
 
-            # Skip empty/placeholder values
-            if not value or value.lower().strip() in ['vide', 'absent', 'aucun', 'none', 'none (since no', '', '[]', 'n/a']:
+            # Skip if value is empty or indicates absence
+            if is_empty_response(value):
+                logger.info(f"Skipping empty value for {key}: {value}")
                 continue
 
-            # Map to fields using exact key matching - ALWAYS UPDATE
-            if key == 'nom':
+            # Normalize key for matching (handles accents: durée → duree)
+            normalized_key = normalize_key(key)
+
+            # Map to fields with normalized key matching
+            if normalized_key == 'nom' or normalized_key == 'name':
                 current_data.patientName = value
                 logger.info(f"Extracted name: {value}")
-            elif key == 'age':
+
+            elif normalized_key == 'age':
                 current_data.patientAge = value
                 logger.info(f"Extracted age: {value}")
-            elif key == 'diagnostic':
+
+            elif normalized_key == 'diagnostic' or normalized_key == 'diagnosis':
                 current_data.diagnosis = value
                 logger.info(f"Extracted diagnosis: {value}")
-            elif key == 'medicament':
+
+            elif normalized_key == 'medicament' or normalized_key == 'medication':
                 current_data.medication = value
                 logger.info(f"Extracted medication: {value}")
-            elif key == 'dosage' or key == 'dosologie' or key == 'posologie':
+
+            elif normalized_key in ['dosage', 'dosologie', 'dosologie', 'posologie']:
                 current_data.dosage = value
                 logger.info(f"Extracted dosage: {value}")
-            elif key == 'duree' or key == 'durée' or key == 'duration':
+
+            elif normalized_key in ['duree', 'duration', 'durée']:
                 current_data.duration = value
                 logger.info(f"Extracted duration: {value}")
-            elif key == 'instructions':
+
+            elif normalized_key == 'instructions' or normalized_key == 'instruction':
                 current_data.specialInstructions = value
                 logger.info(f"Extracted instructions: {value}")
 
@@ -390,12 +363,10 @@ def generate_response(user_message: str, prescription_data: PrescriptionData) ->
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize database and check Ollama at startup"""
-    global ollama_available, current_session_id
+    """Check Ollama availability at startup"""
+    global ollama_available, session_data
 
-    # Initialize database
-    init_db()
-    current_session_id = None
+    session_data = {}
 
     # Check Ollama availability
     logger.info(f"Checking Ollama at {OLLAMA_BASE_URL} with model {OLLAMA_MODEL}...")
@@ -414,6 +385,7 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("Shutting down...")
     ollama_available = False
+    session_data = {}
 
 
 # ============================================================================
@@ -455,6 +427,7 @@ async def health_check():
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """Main chat endpoint - handles everything"""
+    global session_data
     logger.info(f"Chat request: {request.message[:50]}...")
 
     if not ollama_available:
@@ -464,14 +437,14 @@ async def chat(request: ChatRequest):
         )
 
     try:
-        # Get current session data
-        current_data = get_session_data()
+        # Get current session data from memory (default empty)
+        current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
 
         # Extract information from user message
         current_data = extract_data_from_message(request.message, current_data)
 
-        # Save updated data
-        update_session_data(current_data)
+        # Save updated data to memory
+        session_data = current_data.model_dump(exclude_none=True)
 
         # Generate response
         response_text = generate_response(request.message, current_data)
@@ -495,20 +468,21 @@ async def chat(request: ChatRequest):
 @app.post("/api/generate-pdf")
 async def generate_pdf(request: GeneratePDFRequest):
     """Generate PDF from collected prescription data"""
+    global session_data
     logger.info("PDF generation request")
 
+    # Get current session data from memory
+    current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
+
+    # Check if complete
+    if not current_data.is_complete():
+        missing = ", ".join(current_data.get_missing_fields())
+        raise HTTPException(
+            status_code=400,
+            detail=f"Donnees incomples: {missing}"
+        )
+
     try:
-        # Get current session data
-        current_data = get_session_data()
-
-        # Check if complete
-        if not current_data.is_complete():
-            missing = ", ".join(current_data.get_missing_fields())
-            raise HTTPException(
-                status_code=400,
-                detail=f"Donnees incomples: {missing}"
-            )
-
         # Build prescription text
         prescription_text = f"""ORDONNANCE MEDICALE
 
@@ -587,10 +561,10 @@ Date: {datetime.now().strftime('%d/%m/%Y')}
 
 @app.post("/api/reset")
 async def reset_session():
-    """Reset the current session and create new one"""
-    global current_session_id
-    current_session_id = create_new_session()
-    return {"status": "ok", "message": "Session reset", "session_id": current_session_id}
+    """Reset the current session"""
+    global session_data
+    session_data = {}
+    return {"status": "ok", "message": "Session reset"}
 
 
 # ============================================================================

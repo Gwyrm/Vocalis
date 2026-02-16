@@ -3,3 +3,7 @@ uvicorn
 llama-cpp-python
 fpdf
 python-multipart
+pytest
+pytest-asyncio
+httpx
+requests-mock
