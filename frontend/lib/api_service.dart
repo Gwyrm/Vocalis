@@ -7,7 +7,7 @@ import 'models/prescription_data.dart';
 class ApiService {
   // Check for environment variable set via --dart-define (e.g. --dart-define=API_URL=https://api.example.com)
   static const String _envBaseUrl = String.fromEnvironment('API_URL');
-  static const String _baseUrlLocal = 'http://127.0.0.1:8080';
+  static const String _baseUrlLocal = 'http://127.0.0.1:8081';
 
   String get baseUrl {
     // 1. Check if provided via --dart-define
@@ -19,9 +19,11 @@ class ApiService {
       if (origin.contains('localhost') || origin.contains('127.0.0.1')) {
         return _baseUrlLocal;
       }
-      // If deployed, assume the API is on the same host or port 8080
-      // You can adjust this logic: e.g., origin + ":8080" if API is on 8080
-      return origin; 
+      
+      // If accessed from a device/production (e.g. i-noovate.ddns.net),
+      // assume Nginx is proxying /api to the backend.
+      // So we just use the origin.
+      return origin;
     }
 
     return _baseUrlLocal; 
@@ -44,7 +46,7 @@ class ApiService {
       } else if (response.statusCode == 504) {
         throw Exception('L\'IA met trop de temps à répondre.');
       } else {
-        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+        final detail = _tryDecodeDetail(response.body);
         throw Exception('Erreur $detail (${response.statusCode})');
       }
     } catch (e) {
@@ -67,10 +69,10 @@ class ApiService {
       if (response.statusCode == 200) {
         return response.bodyBytes;
       } else if (response.statusCode == 400) {
-        final detail = jsonDecode(response.body)['detail'] ?? 'Données incomplètes';
+        final detail = _tryDecodeDetail(response.body);
         throw Exception(detail);
       } else {
-        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+        final detail = _tryDecodeDetail(response.body);
         throw Exception('Erreur PDF: $detail (${response.statusCode})');
       }
     } catch (e) {
@@ -79,62 +81,12 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> collectPrescriptionInfo(
-    PrescriptionData currentData,
-    String userInput,
-  ) async {
-    final url = Uri.parse('$baseUrl/api/collect-prescription-info');
+  String _tryDecodeDetail(String body) {
     try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'currentData': currentData.toJson(),
-          'userInput': userInput,
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data;
-      } else if (response.statusCode == 503) {
-        throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
-      } else {
-        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
-        throw Exception('Erreur: $detail (${response.statusCode})');
-      }
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('Erreur de connexion : $e');
-    }
-  }
-
-  Future<String> generatePrescription(PrescriptionData data) async {
-    final url = Uri.parse('$baseUrl/api/generate-prescription');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'data': data.toJson(),
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-        return responseData['prescription'] ?? '';
-      } else if (response.statusCode == 503) {
-        throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
-      } else if (response.statusCode == 400) {
-        final detail = jsonDecode(response.body)['detail'] ?? 'Données incomplètes';
-        throw Exception(detail);
-      } else {
-        final detail = jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
-        throw Exception('Erreur: $detail (${response.statusCode})');
-      }
-    } catch (e) {
-      if (e is Exception) rethrow;
-      throw Exception('Erreur de génération : $e');
+      return jsonDecode(body)['detail'] ?? 'Erreur inconnue';
+    } catch (_) {
+      // If body is HTML or not JSON, return a snippet
+      return body.substring(0, 50).replaceAll('\n', ' ') + '...';
     }
   }
 }
