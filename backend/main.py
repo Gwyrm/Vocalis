@@ -3,7 +3,7 @@ Vocalis Backend - Simplified Version
 Medical prescription assistant with LLM-powered information extraction
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -21,6 +21,7 @@ from contextlib import asynccontextmanager
 import json
 from datetime import datetime
 import re
+import asyncio
 
 # Configure logging
 logging.basicConfig(
@@ -34,8 +35,12 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 ollama_available = False
 
-# In-memory session storage
+# In-memory session storage with lock for thread safety
 session_data = {}
+session_lock = asyncio.Lock()
+
+# NOTE: This is a single-user implementation. For multi-user deployments,
+# implement proper session management with session IDs and persistence.
 
 # ============================================================================
 # PROMPTS
@@ -437,16 +442,17 @@ async def chat(request: ChatRequest):
         )
 
     try:
-        # Get current session data from memory (default empty)
-        current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
+        async with session_lock:
+            # Get current session data (thread-safe with lock)
+            current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
 
-        # Extract information from user message
-        current_data = extract_data_from_message(request.message, current_data)
+            # Extract information from user message
+            current_data = extract_data_from_message(request.message, current_data)
 
-        # Save updated data to memory
-        session_data = current_data.model_dump(exclude_none=True)
+            # Save updated data to session
+            session_data = current_data.model_dump(exclude_none=True)
 
-        # Generate response
+        # Generate response (outside lock to avoid blocking)
         response_text = generate_response(request.message, current_data)
 
         # Check if complete
@@ -465,14 +471,25 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def cleanup_temp_file(filepath: str):
+    """Cleanup temporary PDF file"""
+    try:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            logger.info(f"Cleaned up temp file: {filepath}")
+    except Exception as e:
+        logger.error(f"Failed to cleanup temp file {filepath}: {e}")
+
+
 @app.post("/api/generate-pdf")
-async def generate_pdf(request: GeneratePDFRequest):
+async def generate_pdf(request: GeneratePDFRequest, background_tasks: BackgroundTasks):
     """Generate PDF from collected prescription data"""
     global session_data
     logger.info("PDF generation request")
 
-    # Get current session data from memory
-    current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
+    async with session_lock:
+        # Get current session data (thread-safe with lock)
+        current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
 
     # Check if complete
     if not current_data.is_complete():
@@ -525,6 +542,7 @@ Date: {datetime.now().strftime('%d/%m/%Y')}
         pdf.ln(10)
 
         # Signature
+        sig_temp_path = None
         if request.signature_base64:
             try:
                 if "," in request.signature_base64:
@@ -536,20 +554,24 @@ Date: {datetime.now().strftime('%d/%m/%Y')}
 
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
                     tmp.write(img_bytes)
-                    tmp_path = tmp.name
+                    sig_temp_path = tmp.name
 
                 pdf.cell(0, 5, "Signature:", ln=True)
-                pdf.image(tmp_path, w=50)
-                os.remove(tmp_path)
+                pdf.image(sig_temp_path, w=50)
 
             except Exception as e:
                 logger.error(f"Signature error: {e}")
                 pdf.cell(0, 5, "[Signature Error]", ln=True)
 
-        # Save and return
+        # Save PDF
         filename = f"ordonnance_{uuid.uuid4()}.pdf"
         filepath = os.path.join(tempfile.gettempdir(), filename)
         pdf.output(filepath)
+
+        # Schedule cleanup tasks for temp files
+        if sig_temp_path:
+            background_tasks.add_task(cleanup_temp_file, sig_temp_path)
+        background_tasks.add_task(cleanup_temp_file, filepath)
 
         logger.info(f"PDF generated: {filename}")
         return FileResponse(filepath, filename=filename, media_type="application/pdf")
@@ -563,7 +585,8 @@ Date: {datetime.now().strftime('%d/%m/%Y')}
 async def reset_session():
     """Reset the current session"""
     global session_data
-    session_data = {}
+    async with session_lock:
+        session_data = {}
     return {"status": "ok", "message": "Session reset"}
 
 
@@ -572,4 +595,4 @@ async def reset_session():
 # ============================================================================
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8081, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
