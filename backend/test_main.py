@@ -183,7 +183,7 @@ class TestGeneratePDFEndpoint:
         response = client.post("/api/generate-pdf", json={"signature_base64": ""})
 
         assert response.status_code == 400, f"Expected 400 but got {response.status_code}: {response.json()}"
-        assert "Donnees incomples" in response.json()["detail"]
+        assert "Données incomplètes" in response.json()["detail"]
 
     @patch("main.ollama_available", True)
     @patch("main.call_ollama")

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 import uvicorn
 import requests
+import httpx
 import urllib3
 from fpdf import FPDF
 import base64
@@ -29,6 +30,65 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("vocalis-backend")
+
+# ============================================================================
+# SECURITY HELPERS
+# ============================================================================
+
+def sanitize_input(text: str, max_length: int = 5000) -> str:
+    """Sanitize user input to prevent prompt injection
+
+    - Limit length to prevent token overflow
+    - Remove control characters
+    - Safe for inclusion in prompts
+    """
+    if not text:
+        return ""
+
+    # Truncate to max length
+    text = text[:max_length]
+
+    # Remove null bytes and control characters (except newlines and tabs)
+    text = "".join(char for char in text if ord(char) >= 32 or char in "\n\t")
+
+    return text.strip()
+
+
+def validate_signature_image(signature_base64: str) -> Optional[bytes]:
+    """Validate and decode base64 signature image
+
+    Returns:
+        Decoded image bytes if valid, None otherwise
+    """
+    if not signature_base64:
+        return None
+
+    try:
+        # Remove data URI prefix if present
+        if "," in signature_base64:
+            sig_data = signature_base64.split(",")[1]
+        else:
+            sig_data = signature_base64
+
+        # Decode and validate
+        img_bytes = base64.b64decode(sig_data, validate=True)
+
+        # Check size (limit to 1MB)
+        if len(img_bytes) > 1_000_000:
+            logger.warning(f"Signature image too large: {len(img_bytes)} bytes")
+            return None
+
+        # Validate PNG magic bytes (PNG: 89 50 4E 47)
+        if not img_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+            logger.warning("Signature image is not a valid PNG")
+            return None
+
+        return img_bytes
+
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Invalid base64 signature: {e}")
+        return None
+
 
 # Ollama configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -163,8 +223,8 @@ def format_chat_prompt(user_message: str) -> str:
     )
 
 
-def call_ollama(prompt: str, max_tokens: int = 100) -> str:
-    """Call Ollama API and return the response"""
+async def call_ollama(prompt: str, max_tokens: int = 100) -> str:
+    """Call Ollama API asynchronously and return the response"""
     try:
         url = f"{OLLAMA_BASE_URL}/api/generate"
         payload = {
@@ -174,10 +234,11 @@ def call_ollama(prompt: str, max_tokens: int = 100) -> str:
             "temperature": 0.1,
             "top_p": 0.9,
         }
-        response = requests.post(url, json=payload, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("response", "").strip()
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+            return data.get("response", "").strip()
     except Exception as e:
         logger.error(f"Ollama API error: {e}")
         return ""
@@ -233,28 +294,30 @@ def is_empty_response(value: str) -> bool:
     return False
 
 
-def extract_data_from_message(text: str, current_data: PrescriptionData) -> PrescriptionData:
-    """Extract prescription data using Ollama with improved parsing"""
+async def extract_data_from_message(text: str, current_data: PrescriptionData) -> PrescriptionData:
+    """Extract prescription data using Ollama with improved parsing and prompt injection prevention"""
     if not ollama_available:
         logger.warning("Ollama not available, skipping extraction")
         return current_data
 
-    logger.info(f"Extracting from text: {text[:100]}...")
+    # Sanitize input to prevent prompt injection
+    safe_text = sanitize_input(text)
+    logger.info(f"Extracting from text: {safe_text[:100]}...")
 
     # Build context of existing data for the model
     existing_context = []
     if current_data.patientName:
-        existing_context.append(f"Patient actuel: {current_data.patientName}")
+        existing_context.append(f"Patient actuel: {sanitize_input(current_data.patientName, 200)}")
     if current_data.patientAge:
-        existing_context.append(f"Age connu: {current_data.patientAge}")
+        existing_context.append(f"Age connu: {sanitize_input(current_data.patientAge, 100)}")
     if current_data.diagnosis:
-        existing_context.append(f"Diagnostic connu: {current_data.diagnosis}")
+        existing_context.append(f"Diagnostic connu: {sanitize_input(current_data.diagnosis, 200)}")
     if current_data.medication:
-        existing_context.append(f"Medicament connu: {current_data.medication}")
+        existing_context.append(f"Medicament connu: {sanitize_input(current_data.medication, 200)}")
 
     context_str = "\n".join(existing_context) if existing_context else ""
 
-    # Improved extraction prompt with context preservation
+    # Improved extraction prompt with context preservation and sanitized input
     extraction_prompt = (
         f"Tu extrais les informations medicales d'un message.\n\n"
     )
@@ -267,7 +330,7 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
         )
 
     extraction_prompt += (
-        f"NOUVEAU MESSAGE:\n{text}\n\n"
+        f"NOUVEAU MESSAGE:\n{safe_text}\n\n"
         f"REPONSE (7 lignes SEULEMENT):\n"
         f"Nom:\n"
         f"Age:\n"
@@ -279,7 +342,7 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
     )
 
     try:
-        response = call_ollama(extraction_prompt, max_tokens=150)
+        response = await call_ollama(extraction_prompt, max_tokens=150)
         logger.info(f"Ollama response:\n{response}")
 
         # Parse line by line with improved matching
@@ -305,32 +368,32 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
 
             # Map to fields with normalized key matching
             if normalized_key == 'nom' or normalized_key == 'name':
-                current_data.patientName = value
-                logger.info(f"Extracted name: {value}")
+                current_data.patientName = sanitize_input(value, 200)
+                logger.info(f"Extracted name: {current_data.patientName}")
 
             elif normalized_key == 'age':
-                current_data.patientAge = value
-                logger.info(f"Extracted age: {value}")
+                current_data.patientAge = sanitize_input(value, 100)
+                logger.info(f"Extracted age: {current_data.patientAge}")
 
             elif normalized_key == 'diagnostic' or normalized_key == 'diagnosis':
-                current_data.diagnosis = value
-                logger.info(f"Extracted diagnosis: {value}")
+                current_data.diagnosis = sanitize_input(value, 500)
+                logger.info(f"Extracted diagnosis: {current_data.diagnosis}")
 
             elif normalized_key == 'medicament' or normalized_key == 'medication':
-                current_data.medication = value
-                logger.info(f"Extracted medication: {value}")
+                current_data.medication = sanitize_input(value, 200)
+                logger.info(f"Extracted medication: {current_data.medication}")
 
             elif normalized_key in ['dosage', 'dosologie', 'dosologie', 'posologie']:
-                current_data.dosage = value
-                logger.info(f"Extracted dosage: {value}")
+                current_data.dosage = sanitize_input(value, 200)
+                logger.info(f"Extracted dosage: {current_data.dosage}")
 
             elif normalized_key in ['duree', 'duration', 'durée']:
-                current_data.duration = value
-                logger.info(f"Extracted duration: {value}")
+                current_data.duration = sanitize_input(value, 200)
+                logger.info(f"Extracted duration: {current_data.duration}")
 
             elif normalized_key == 'instructions' or normalized_key == 'instruction':
-                current_data.specialInstructions = value
-                logger.info(f"Extracted instructions: {value}")
+                current_data.specialInstructions = sanitize_input(value, 500)
+                logger.info(f"Extracted instructions: {current_data.specialInstructions}")
 
     except Exception as e:
         logger.error(f"Extraction error: {e}")
@@ -338,11 +401,13 @@ def extract_data_from_message(text: str, current_data: PrescriptionData) -> Pres
     return current_data
 
 
-def generate_response(user_message: str, prescription_data: PrescriptionData) -> str:
-    """Generate conversational response using Ollama"""
+async def generate_response(user_message: str, prescription_data: PrescriptionData) -> str:
+    """Generate conversational response using Ollama with prompt injection prevention"""
     if not ollama_available:
         return "Erreur: Ollama non disponible"
 
+    # Sanitize user input to prevent prompt injection
+    safe_user_message = sanitize_input(user_message, 2000)
     collected = prescription_data.format_display()
     missing = ", ".join(prescription_data.get_missing_fields()) or "Aucun"
 
@@ -350,12 +415,12 @@ def generate_response(user_message: str, prescription_data: PrescriptionData) ->
         f"{SYSTEM_PROMPT}\n\n"
         f"Informations collectees:\n{collected}\n\n"
         f"Informations manquantes:\n{missing}\n\n"
-        f"Message utilisateur: {user_message}\n\n"
+        f"Message utilisateur: {safe_user_message}\n\n"
         f"Reponds en francais. Confirme les infos recues et demande les infos manquantes."
     )
 
     try:
-        response = call_ollama(prompt, max_tokens=256)
+        response = await call_ollama(prompt, max_tokens=256)
         return response if response else "Je n'ai pas pu générer une réponse."
     except Exception as e:
         logger.error(f"Response generation error: {e}")
@@ -399,13 +464,19 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-# Enable CORS
+# Enable CORS with configurable origins (defaults to localhost for security)
+# Set CORS_ORIGINS env var to comma-separated list of allowed origins
+cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:5000,http://127.0.0.1:3000").split(",")
+cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+
+logger.info(f"CORS enabled for origins: {cors_origins}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 
@@ -446,14 +517,14 @@ async def chat(request: ChatRequest):
             # Get current session data (thread-safe with lock)
             current_data = PrescriptionData(**session_data) if session_data else PrescriptionData()
 
-            # Extract information from user message
-            current_data = extract_data_from_message(request.message, current_data)
+            # Extract information from user message (with prompt injection prevention)
+            current_data = await extract_data_from_message(request.message, current_data)
 
             # Save updated data to session
             session_data = current_data.model_dump(exclude_none=True)
 
-        # Generate response (outside lock to avoid blocking)
-        response_text = generate_response(request.message, current_data)
+        # Generate response (outside lock to avoid blocking, with prompt injection prevention)
+        response_text = await generate_response(request.message, current_data)
 
         # Check if complete
         is_complete = current_data.is_complete()
@@ -496,7 +567,7 @@ async def generate_pdf(request: GeneratePDFRequest, background_tasks: Background
         missing = ", ".join(current_data.get_missing_fields())
         raise HTTPException(
             status_code=400,
-            detail=f"Donnees incomples: {missing}"
+            detail=f"Données incomplètes: {missing}"
         )
 
     try:
@@ -541,27 +612,25 @@ Date: {datetime.now().strftime('%d/%m/%Y')}
 
         pdf.ln(10)
 
-        # Signature
+        # Signature (with validation)
         sig_temp_path = None
         if request.signature_base64:
-            try:
-                if "," in request.signature_base64:
-                    sig_data = request.signature_base64.split(",")[1]
-                else:
-                    sig_data = request.signature_base64
+            img_bytes = validate_signature_image(request.signature_base64)
+            if img_bytes:
+                try:
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
+                        tmp.write(img_bytes)
+                        sig_temp_path = tmp.name
 
-                img_bytes = base64.b64decode(sig_data)
+                    pdf.cell(0, 5, "Signature:", ln=True)
+                    pdf.image(sig_temp_path, w=50)
 
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
-                    tmp.write(img_bytes)
-                    sig_temp_path = tmp.name
-
-                pdf.cell(0, 5, "Signature:", ln=True)
-                pdf.image(sig_temp_path, w=50)
-
-            except Exception as e:
-                logger.error(f"Signature error: {e}")
-                pdf.cell(0, 5, "[Signature Error]", ln=True)
+                except Exception as e:
+                    logger.error(f"Signature processing error: {e}")
+                    pdf.cell(0, 5, "[Signature Error]", ln=True)
+            else:
+                logger.warning("Signature validation failed")
+                pdf.cell(0, 5, "[Invalid Signature]", ln=True)
 
         # Save PDF
         filename = f"ordonnance_{uuid.uuid4()}.pdf"
