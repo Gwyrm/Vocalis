@@ -319,6 +319,63 @@ class NurseAnalytics(BaseModel):
 
 
 # ============================================================================
+# Offline Sync Schemas
+# ============================================================================
+
+class OfflineQueueItem(BaseModel):
+    """Item in offline sync queue"""
+    id: str
+    action: str  # create, update, delete
+    resource_type: str  # prescription, visit, device, location, photo
+    resource_id: Optional[str]
+    payload: dict
+    status: str  # pending, syncing, synced, failed
+    created_at: datetime
+    synced_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class OfflineSyncPush(BaseModel):
+    """Push queued offline changes to server"""
+    queue_items: list[dict]  # List of actions from mobile
+
+
+class OfflineSyncStatus(BaseModel):
+    """Sync status response"""
+    pending_count: int
+    synced_count: int
+    failed_count: int
+    last_sync_time: Optional[datetime]
+    next_retry_time: Optional[datetime]
+
+
+class OfflineDataPackage(BaseModel):
+    """Data package for offline use"""
+    user: dict
+    organization: dict
+    prescriptions: list[dict]
+    patient_visits: list[dict]
+    devices: list[dict]
+    photos: list[dict]
+    last_sync: datetime
+    package_version: str = "1.0"
+
+
+class SyncConflict(BaseModel):
+    """Conflict detected during sync"""
+    resource_type: str
+    resource_id: str
+    local_version: dict
+    server_version: dict
+    local_updated_at: datetime
+    server_updated_at: datetime
+    resolution: str  # local_wins, server_wins, merge
+
+
+# ============================================================================
 # Error Schemas
 # ============================================================================
 

@@ -31,7 +31,8 @@ from schemas import (
     VisitCompleteRequest,
     NurseLocationCreate, NurseLocationResponse, PhotoResponse,
     DeviceCreate, DeviceUpdateStatus, DeviceListResponse,
-    VisitAnalytics, DeviceAnalytics, NurseAnalytics
+    VisitAnalytics, DeviceAnalytics, NurseAnalytics,
+    OfflineQueueItem, OfflineSyncPush, OfflineSyncStatus, OfflineDataPackage, SyncConflict
 )
 from auth import (
     hash_password, verify_password, create_access_token, verify_token, TokenData
@@ -1055,6 +1056,310 @@ async def health_check():
         "ollama_url": OLLAMA_BASE_URL,
         "model": OLLAMA_MODEL
     }
+
+
+# ============================================================================
+# PHASE 3.5: OFFLINE SYNC ENDPOINTS
+# ============================================================================
+
+@app.post("/api/offline-sync/prepare", response_model=OfflineDataPackage)
+async def prepare_offline_data(
+    date_from: datetime = None,
+    date_to: datetime = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Prepare data package for offline use (download for mobile app)"""
+
+    # Default to today if no dates specified
+    if not date_from:
+        date_from = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    if not date_to:
+        date_to = datetime.utcnow().replace(hour=23, minute=59, second=59, microsecond=999999)
+
+    # Get user data
+    user_data = {
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role.value
+    }
+
+    # Get organization data
+    org = db.query(Organization).filter(Organization.id == current_user.org_id).first()
+    org_data = {
+        "id": org.id,
+        "name": org.name,
+        "address": org.address,
+        "phone": org.phone
+    } if org else {}
+
+    # Get prescriptions (for doctor or relevant to nurse)
+    prescriptions_query = db.query(Prescription).filter(
+        Prescription.org_id == current_user.org_id,
+        Prescription.created_at >= date_from,
+        Prescription.created_at <= date_to
+    )
+
+    prescriptions = [
+        {
+            "id": p.id,
+            "patient_name": p.patient_name,
+            "patient_age": p.patient_age,
+            "diagnosis": p.diagnosis,
+            "medication": p.medication,
+            "dosage": p.dosage,
+            "duration": p.duration,
+            "special_instructions": p.special_instructions,
+            "status": p.status,
+            "created_at": p.created_at.isoformat()
+        }
+        for p in prescriptions_query.all()
+    ]
+
+    # Get patient visits (nurse sees only own, doctor sees all)
+    visits_query = db.query(PatientVisit).filter(
+        PatientVisit.org_id == current_user.org_id,
+        PatientVisit.scheduled_date >= date_from,
+        PatientVisit.scheduled_date <= date_to
+    )
+
+    if current_user.role == UserRole.NURSE:
+        visits_query = visits_query.filter(PatientVisit.assigned_nurse == current_user.id)
+
+    visits = [
+        {
+            "id": v.id,
+            "prescription_id": v.prescription_id,
+            "patient_address": v.patient_address,
+            "scheduled_date": v.scheduled_date.isoformat(),
+            "status": v.status,
+            "created_at": v.created_at.isoformat()
+        }
+        for v in visits_query.all()
+    ]
+
+    # Get devices
+    devices = [
+        {
+            "id": d.id,
+            "name": d.name,
+            "model": d.model,
+            "serial_number": d.serial_number,
+            "status": d.status,
+            "created_at": d.created_at.isoformat()
+        }
+        for d in db.query(Device).filter(Device.org_id == current_user.org_id).all()
+    ]
+
+    # Get photos for nurse's visits
+    photos = []
+    if current_user.role == UserRole.NURSE:
+        nurse_visit_ids = [v.id for v in db.query(PatientVisit).filter(
+            PatientVisit.assigned_nurse == current_user.id
+        ).all()]
+
+        photos = [
+            {
+                "id": p.id,
+                "visit_id": p.visit_id,
+                "caption": p.caption,
+                "uploaded_at": p.uploaded_at.isoformat()
+            }
+            for p in db.query(PhotoAttachment).filter(
+                PhotoAttachment.visit_id.in_(nurse_visit_ids)
+            ).all()
+        ]
+
+    logger.info(f"Offline data prepared for {current_user.email}")
+
+    return OfflineDataPackage(
+        user=user_data,
+        organization=org_data,
+        prescriptions=prescriptions,
+        patient_visits=visits,
+        devices=devices,
+        photos=photos,
+        last_sync=datetime.utcnow()
+    )
+
+
+@app.post("/api/offline-sync/push")
+async def push_offline_changes(
+    request: OfflineSyncPush,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Process queued offline changes from mobile app"""
+
+    synced_count = 0
+    failed_count = 0
+    conflicts = []
+
+    for item in request.queue_items:
+        try:
+            action = item.get("action")
+            resource_type = item.get("resource_type")
+            payload = item.get("payload", {})
+
+            # Validate permissions
+            if resource_type in ["prescription", "device"] and current_user.role != UserRole.DOCTOR:
+                failed_count += 1
+                continue
+
+            # Process based on resource type
+            if resource_type == "patient_visit" and action == "update":
+                visit = db.query(PatientVisit).filter(
+                    PatientVisit.id == item.get("resource_id"),
+                    PatientVisit.org_id == current_user.org_id
+                ).first()
+
+                if visit:
+                    visit.status = payload.get("status", visit.status)
+                    db.commit()
+                    synced_count += 1
+                else:
+                    failed_count += 1
+
+            elif resource_type == "nurse_location" and action == "create":
+                location = NurseLocation(
+                    org_id=current_user.org_id,
+                    nurse_id=current_user.id,
+                    latitude=payload.get("latitude"),
+                    longitude=payload.get("longitude"),
+                    accuracy=payload.get("accuracy"),
+                    visit_id=payload.get("visit_id"),
+                    recorded_at=datetime.utcnow()
+                )
+                db.add(location)
+                db.commit()
+                synced_count += 1
+
+            else:
+                failed_count += 1
+
+        except Exception as e:
+            logger.error(f"Sync error for {resource_type}: {e}")
+            failed_count += 1
+
+    logger.info(f"Offline sync: {synced_count} synced, {failed_count} failed for {current_user.email}")
+
+    return {
+        "synced_count": synced_count,
+        "failed_count": failed_count,
+        "total_processed": len(request.queue_items),
+        "conflicts": conflicts
+    }
+
+
+@app.get("/api/offline-sync/status", response_model=OfflineSyncStatus)
+async def get_sync_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current sync status"""
+
+    queue = db.query(OfflineQueue).filter(
+        OfflineQueue.user_id == current_user.id
+    ).all()
+
+    pending = len([q for q in queue if q.status == "pending"])
+    synced = len([q for q in queue if q.status == "synced"])
+    failed = len([q for q in queue if q.status == "failed"])
+
+    # Find last sync time
+    last_synced = max(
+        [q.synced_at for q in queue if q.synced_at],
+        default=None
+    )
+
+    # Calculate next retry time (exponential backoff)
+    failed_items = [q for q in queue if q.status == "failed"]
+    next_retry = None
+    if failed_items:
+        latest_failed = max(failed_items, key=lambda x: x.created_at)
+        retry_delay = timedelta(minutes=2 ** min(3, (datetime.utcnow() - latest_failed.created_at).seconds // 300))
+        next_retry = latest_failed.created_at + retry_delay
+
+    return OfflineSyncStatus(
+        pending_count=pending,
+        synced_count=synced,
+        failed_count=failed,
+        last_sync_time=last_synced,
+        next_retry_time=next_retry
+    )
+
+
+@app.get("/api/offline-sync/queue", response_model=list[OfflineQueueItem])
+async def get_sync_queue(
+    status: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get pending offline sync queue"""
+
+    query = db.query(OfflineQueue).filter(OfflineQueue.user_id == current_user.id)
+
+    if status:
+        query = query.filter(OfflineQueue.status == status)
+
+    items = query.order_by(OfflineQueue.created_at.desc()).all()
+
+    return [OfflineQueueItem.from_attributes(item) for item in items]
+
+
+@app.post("/api/offline-sync/queue")
+async def queue_offline_action(
+    action: str,
+    resource_type: str,
+    payload: dict,
+    resource_id: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Manually queue an offline action"""
+
+    queue_item = OfflineQueue(
+        user_id=current_user.id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        payload=json.dumps(payload),
+        status="pending",
+        created_at=datetime.utcnow()
+    )
+
+    db.add(queue_item)
+    db.commit()
+    db.refresh(queue_item)
+
+    logger.info(f"Action queued: {action} {resource_type} by {current_user.email}")
+
+    return {"id": queue_item.id, "status": "pending"}
+
+
+@app.delete("/api/offline-sync/queue/{queue_id}")
+async def clear_queue_item(
+    queue_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Clear specific queue item"""
+
+    item = db.query(OfflineQueue).filter(
+        OfflineQueue.id == queue_id,
+        OfflineQueue.user_id == current_user.id
+    ).first()
+
+    if not item:
+        raise HTTPException(status_code=404, detail="Queue item not found")
+
+    db.delete(item)
+    db.commit()
+
+    logger.info(f"Queue item cleared: {queue_id}")
+
+    return {"status": "deleted"}
 
 
 # ============================================================================
