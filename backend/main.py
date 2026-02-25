@@ -3,7 +3,7 @@ Vocalis Backend - Healthcare Device Delivery Platform
 Multi-user system with authentication, prescriptions, and LLM-powered assistance
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
@@ -14,16 +14,24 @@ import asyncio
 import tempfile
 import uuid
 import uvicorn
-from datetime import datetime
+import json
+from datetime import datetime, timedelta
+from haversine import haversine, Unit
 
 # Local imports
 from database import get_db, init_db, engine, Base
-from models import User, Prescription, Organization, UserRole, PatientVisit, Device
+from models import (
+    User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
+    NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue
+)
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
     PrescriptionCreate, PrescriptionUpdate, PrescriptionResponse, PrescriptionListResponse,
     PatientVisitCreate, PatientVisitUpdate, PatientVisitListResponse, PatientVisitDetailResponse,
-    VisitCompleteRequest
+    VisitCompleteRequest,
+    NurseLocationCreate, NurseLocationResponse, PhotoResponse,
+    DeviceCreate, DeviceUpdateStatus, DeviceListResponse,
+    VisitAnalytics, DeviceAnalytics, NurseAnalytics
 )
 from auth import (
     hash_password, verify_password, create_access_token, verify_token, TokenData
@@ -608,6 +616,424 @@ async def complete_patient_visit(
         "status": "completed",
         "completed_at": visit_detail.completed_at
     }
+
+
+# ============================================================================
+# PHASE 3: GPS TRACKING ENDPOINTS
+# ============================================================================
+
+@app.post("/api/nurse-locations", response_model=dict)
+async def record_nurse_location(
+    request: NurseLocationCreate,
+    current_user: User = Depends(get_nurse),
+    db: Session = Depends(get_db)
+):
+    """Record nurse GPS location"""
+
+    location = NurseLocation(
+        org_id=current_user.org_id,
+        nurse_id=current_user.id,
+        latitude=request.latitude,
+        longitude=request.longitude,
+        accuracy=request.accuracy,
+        visit_id=request.visit_id,
+        recorded_at=datetime.utcnow()
+    )
+
+    db.add(location)
+    db.commit()
+
+    logger.info(f"Location recorded for {current_user.email}: ({request.latitude}, {request.longitude})")
+
+    return {"id": location.id, "recorded_at": location.recorded_at}
+
+
+@app.get("/api/nurse-locations", response_model=list[NurseLocationResponse])
+async def get_nurse_locations(
+    nurse_id: str = None,
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Get current nurse locations (doctor only)"""
+
+    query = db.query(NurseLocation).filter(
+        NurseLocation.org_id == current_user.org_id
+    )
+
+    if nurse_id:
+        query = query.filter(NurseLocation.nurse_id == nurse_id)
+
+    # Get latest location for each nurse (or specific nurse)
+    locations = query.order_by(NurseLocation.recorded_at.desc()).all()
+
+    return [NurseLocationResponse.from_attributes(loc) for loc in locations[:100]]
+
+
+# ============================================================================
+# PHASE 3: PHOTO ATTACHMENTS ENDPOINTS
+# ============================================================================
+
+@app.post("/api/patient-visits/{visit_id}/photos", response_model=PhotoResponse)
+async def upload_visit_photo(
+    visit_id: str,
+    file: UploadFile = File(...),
+    caption: str = None,
+    current_user: User = Depends(get_nurse),
+    db: Session = Depends(get_db)
+):
+    """Upload photo for patient visit"""
+
+    visit = db.query(PatientVisit).filter(
+        PatientVisit.id == visit_id,
+        PatientVisit.org_id == current_user.org_id
+    ).first()
+
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+
+    if visit.assigned_nurse != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        # Save file to temp directory
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "jpg"
+        filename = f"photo_{visit_id}_{uuid.uuid4()}.{file_ext}"
+        filepath = os.path.join(tempfile.gettempdir(), filename)
+
+        # Read and save file
+        contents = await file.read()
+        with open(filepath, "wb") as f:
+            f.write(contents)
+
+        # Create database record
+        photo = PhotoAttachment(
+            visit_id=visit_id,
+            file_path=filepath,
+            caption=sanitize_input(caption or "", 500),
+            file_size=len(contents),
+            mime_type=file.content_type or "image/jpeg",
+            uploaded_at=datetime.utcnow()
+        )
+
+        db.add(photo)
+        db.commit()
+        db.refresh(photo)
+
+        logger.info(f"Photo uploaded for visit {visit_id}: {filename}")
+
+        return PhotoResponse.from_attributes(photo)
+
+    except Exception as e:
+        logger.error(f"Photo upload error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload photo")
+
+
+@app.get("/api/patient-visits/{visit_id}/photos", response_model=list[PhotoResponse])
+async def get_visit_photos(
+    visit_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get photos for visit"""
+
+    visit = db.query(PatientVisit).filter(
+        PatientVisit.id == visit_id,
+        PatientVisit.org_id == current_user.org_id
+    ).first()
+
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+
+    if current_user.role == UserRole.NURSE and visit.assigned_nurse != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    photos = db.query(PhotoAttachment).filter(
+        PhotoAttachment.visit_id == visit_id
+    ).order_by(PhotoAttachment.uploaded_at.asc()).all()
+
+    return [PhotoResponse.from_attributes(photo) for photo in photos]
+
+
+# ============================================================================
+# PHASE 3: DEVICE INVENTORY ENDPOINTS
+# ============================================================================
+
+@app.post("/api/devices", response_model=dict)
+async def create_device(
+    request: DeviceCreate,
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Create device in inventory (doctor/admin only)"""
+
+    # Check if serial already exists
+    existing = db.query(Device).filter(
+        Device.serial_number == request.serial_number
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Device serial already exists")
+
+    device = Device(
+        org_id=current_user.org_id,
+        name=sanitize_input(request.name, 200),
+        model=sanitize_input(request.model or "", 200),
+        serial_number=sanitize_input(request.serial_number, 100),
+        status="available",
+        created_at=datetime.utcnow()
+    )
+
+    db.add(device)
+    db.commit()
+    db.refresh(device)
+
+    logger.info(f"Device created: {device.serial_number}")
+
+    return {"id": device.id, "status": "available"}
+
+
+@app.get("/api/devices", response_model=list[DeviceListResponse])
+async def list_devices(
+    status: str = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List devices in organization inventory"""
+
+    query = db.query(Device).filter(Device.org_id == current_user.org_id)
+
+    if status:
+        query = query.filter(Device.status == status)
+
+    devices = query.order_by(Device.created_at.desc()).all()
+
+    return [DeviceListResponse.from_attributes(d) for d in devices]
+
+
+@app.patch("/api/devices/{device_id}")
+async def update_device_status(
+    device_id: str,
+    request: DeviceUpdateStatus,
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Update device status"""
+
+    device = db.query(Device).filter(
+        Device.id == device_id,
+        Device.org_id == current_user.org_id
+    ).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    old_status = device.status
+    device.status = request.status
+    db.commit()
+
+    # Record status change in history
+    history = DeviceStatus(
+        device_id=device_id,
+        visit_id=request.visit_id,
+        old_status=old_status,
+        new_status=request.status,
+        changed_by=current_user.id,
+        reason=request.reason,
+        changed_at=datetime.utcnow()
+    )
+
+    db.add(history)
+    db.commit()
+
+    logger.info(f"Device {device_id} status updated: {old_status} → {request.status}")
+
+    return {"id": device.id, "status": device.status}
+
+
+# ============================================================================
+# PHASE 3: ANALYTICS ENDPOINTS
+# ============================================================================
+
+@app.get("/api/analytics/visits", response_model=VisitAnalytics)
+async def get_visit_analytics(
+    date_from: datetime = None,
+    date_to: datetime = None,
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Get visit completion analytics"""
+
+    query = db.query(PatientVisit).filter(PatientVisit.org_id == current_user.org_id)
+
+    if date_from:
+        query = query.filter(PatientVisit.created_at >= date_from)
+    if date_to:
+        query = query.filter(PatientVisit.created_at <= date_to)
+
+    visits = query.all()
+
+    total = len(visits)
+    completed = len([v for v in visits if v.status == "completed"])
+    pending = len([v for v in visits if v.status == "pending"])
+    in_progress = len([v for v in visits if v.status == "in_progress"])
+
+    completion_rate = (completed / total * 100) if total > 0 else 0
+
+    # Calculate average duration
+    completed_visits = db.query(PatientVisit, VisitDetail).join(
+        VisitDetail, PatientVisit.id == VisitDetail.visit_id
+    ).filter(
+        PatientVisit.org_id == current_user.org_id,
+        PatientVisit.status == "completed"
+    ).all()
+
+    if completed_visits:
+        durations = [
+            (vd[1].completed_at - vd[0].created_at).total_seconds() / 60
+            for vd in completed_visits if vd[1].completed_at
+        ]
+        avg_duration = sum(durations) / len(durations) if durations else 0
+    else:
+        avg_duration = 0
+
+    return VisitAnalytics(
+        total_visits=total,
+        completed_visits=completed,
+        pending_visits=pending,
+        in_progress_visits=in_progress,
+        completion_rate=completion_rate,
+        average_visit_duration_minutes=avg_duration
+    )
+
+
+@app.get("/api/analytics/devices", response_model=DeviceAnalytics)
+async def get_device_analytics(
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Get device usage analytics"""
+
+    devices = db.query(Device).filter(Device.org_id == current_user.org_id).all()
+
+    total = len(devices)
+    available = len([d for d in devices if d.status == "available"])
+    in_use = len([d for d in devices if d.status == "in_use"])
+    maintenance = len([d for d in devices if d.status == "maintenance"])
+
+    utilization_rate = ((in_use + total - available) / total * 100) if total > 0 else 0
+
+    return DeviceAnalytics(
+        total_devices=total,
+        available_devices=available,
+        in_use_devices=in_use,
+        maintenance_devices=maintenance,
+        device_utilization_rate=utilization_rate
+    )
+
+
+@app.get("/api/analytics/nurses", response_model=list[NurseAnalytics])
+async def get_nurse_analytics(
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Get nurse performance analytics"""
+
+    nurses = db.query(User).filter(
+        User.org_id == current_user.org_id,
+        User.role == UserRole.NURSE
+    ).all()
+
+    results = []
+
+    for nurse in nurses:
+        visits = db.query(PatientVisit).filter(
+            PatientVisit.assigned_nurse == nurse.id
+        ).all()
+
+        total_visits = len(visits)
+        completed_visits = len([v for v in visits if v.status == "completed"])
+
+        # Calculate average duration
+        completed = db.query(PatientVisit, VisitDetail).join(
+            VisitDetail, PatientVisit.id == VisitDetail.visit_id
+        ).filter(
+            PatientVisit.assigned_nurse == nurse.id,
+            PatientVisit.status == "completed"
+        ).all()
+
+        if completed:
+            durations = [
+                (vd[1].completed_at - vd[0].created_at).total_seconds() / 60
+                for vd in completed if vd[1].completed_at
+            ]
+            avg_duration = sum(durations) / len(durations) if durations else 0
+        else:
+            avg_duration = 0
+
+        completion_rate = (completed_visits / total_visits * 100) if total_visits > 0 else 0
+
+        results.append(NurseAnalytics(
+            nurse_id=nurse.id,
+            nurse_name=nurse.full_name,
+            total_visits=total_visits,
+            completed_visits=completed_visits,
+            average_visit_duration_minutes=avg_duration,
+            completion_rate=completion_rate
+        ))
+
+    return results
+
+
+# ============================================================================
+# PHASE 3: WEBSOCKET REAL-TIME UPDATES
+# ============================================================================
+
+# Store active WebSocket connections
+active_connections: dict[str, list[WebSocket]] = {}
+
+
+@app.websocket("/ws/doctor/{user_id}")
+async def websocket_doctor_updates(websocket: WebSocket, user_id: str):
+    """WebSocket for doctor to receive real-time visit updates"""
+
+    await websocket.accept()
+
+    # Store connection
+    if user_id not in active_connections:
+        active_connections[user_id] = []
+    active_connections[user_id].append(websocket)
+
+    logger.info(f"Doctor {user_id} connected to WebSocket")
+
+    try:
+        while True:
+            data = await websocket.receive_text()
+            # Can receive keepalive or commands
+            if data == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+
+    except WebSocketDisconnect:
+        active_connections[user_id].remove(websocket)
+        logger.info(f"Doctor {user_id} disconnected from WebSocket")
+
+
+async def notify_doctor_visit_update(org_id: str, visit_id: str, status: str, details: dict):
+    """Send real-time update to all doctors in organization"""
+    # In production, would query for all doctor users and send updates
+    message = {
+        "type": "visit_update",
+        "visit_id": visit_id,
+        "status": status,
+        "details": details,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+    for connections in active_connections.values():
+        for connection in connections:
+            try:
+                await connection.send_text(json.dumps(message))
+            except Exception as e:
+                logger.error(f"Error sending WebSocket message: {e}")
 
 
 # ============================================================================

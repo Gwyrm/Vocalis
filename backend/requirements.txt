@@ -21,6 +21,12 @@ pydantic>=2.0
 pydantic-settings
 email-validator
 
+# Phase 3: Advanced Features
+websockets
+python-multipart
+pillow  # Image processing
+haversine  # GPS distance calculation
+
 # Testing
 pytest
 pytest-asyncio

@@ -215,6 +215,110 @@ class PatientVisitDetailResponse(BaseModel):
 
 
 # ============================================================================
+# GPS Location Schemas
+# ============================================================================
+
+class NurseLocationCreate(BaseModel):
+    """Record nurse GPS location"""
+    latitude: float
+    longitude: float
+    accuracy: Optional[float] = None
+    visit_id: Optional[str] = None
+
+
+class NurseLocationResponse(BaseModel):
+    """Nurse location response"""
+    id: str
+    nurse_id: str
+    latitude: float
+    longitude: float
+    accuracy: Optional[float]
+    recorded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Photo Attachment Schemas
+# ============================================================================
+
+class PhotoResponse(BaseModel):
+    """Photo attachment response"""
+    id: str
+    file_path: str
+    caption: Optional[str]
+    uploaded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Device Inventory Schemas
+# ============================================================================
+
+class DeviceCreate(BaseModel):
+    """Create device (already defined above, reusing)"""
+    name: str
+    model: Optional[str] = None
+    serial_number: str
+
+
+class DeviceUpdateStatus(BaseModel):
+    """Update device status"""
+    status: str  # available, assigned, in_use, maintenance, returned
+    reason: Optional[str] = None
+    visit_id: Optional[str] = None
+
+
+class DeviceListResponse(BaseModel):
+    """Device with status info"""
+    id: str
+    name: str
+    model: Optional[str]
+    serial_number: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Analytics Schemas
+# ============================================================================
+
+class VisitAnalytics(BaseModel):
+    """Visit completion analytics"""
+    total_visits: int
+    completed_visits: int
+    pending_visits: int
+    in_progress_visits: int
+    completion_rate: float  # percentage
+    average_visit_duration_minutes: float
+
+
+class DeviceAnalytics(BaseModel):
+    """Device usage analytics"""
+    total_devices: int
+    available_devices: int
+    in_use_devices: int
+    maintenance_devices: int
+    device_utilization_rate: float  # percentage
+
+
+class NurseAnalytics(BaseModel):
+    """Nurse performance analytics"""
+    nurse_id: str
+    nurse_name: str
+    total_visits: int
+    completed_visits: int
+    average_visit_duration_minutes: float
+    completion_rate: float
+
+
+# ============================================================================
 # Error Schemas
 # ============================================================================
 

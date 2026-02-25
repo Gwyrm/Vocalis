@@ -1,6 +1,6 @@
 """SQLAlchemy models for Vocalis"""
 
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Enum, Boolean
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Text, Enum, Boolean, Float
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -158,3 +158,82 @@ class AuditLog(Base):
 
     changes = Column(Text)  # JSON object of changes
     timestamp = Column(DateTime, default=datetime.utcnow)
+
+
+class NurseLocation(Base):
+    """GPS tracking for nurses in field"""
+    __tablename__ = "nurse_locations"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    org_id = Column(String(36), ForeignKey("organizations.id"), nullable=False)
+    nurse_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy = Column(Float)  # Accuracy radius in meters
+    visit_id = Column(String(36), ForeignKey("patient_visits.id"))  # Linked visit if at patient home
+
+    recorded_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    nurse = relationship("User")
+    visit = relationship("PatientVisit")
+
+
+class PhotoAttachment(Base):
+    """Photos attached to patient visits"""
+    __tablename__ = "photo_attachments"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    visit_id = Column(String(36), ForeignKey("patient_visits.id"), nullable=False)
+
+    file_path = Column(String(500), nullable=False)  # Local file path or S3 URL
+    caption = Column(String(500))  # e.g., "Before setup", "After setup"
+    file_size = Column(Integer)  # Size in bytes
+    mime_type = Column(String(100), default="image/jpeg")
+
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    visit = relationship("PatientVisit")
+
+
+class DeviceStatus(Base):
+    """Track device status changes over time"""
+    __tablename__ = "device_status_history"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    device_id = Column(String(36), ForeignKey("devices.id"), nullable=False)
+    visit_id = Column(String(36), ForeignKey("patient_visits.id"))
+
+    old_status = Column(String(50))
+    new_status = Column(String(50), nullable=False)
+    changed_by = Column(String(36), ForeignKey("users.id"))  # Which user made change
+    reason = Column(String(255))  # Why status changed
+
+    changed_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    device = relationship("Device")
+    visit = relationship("PatientVisit")
+    user = relationship("User")
+
+
+class OfflineQueue(Base):
+    """Queue for offline-first mobile sync"""
+    __tablename__ = "offline_queue"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+
+    action = Column(String(50), nullable=False)  # create, update, delete
+    resource_type = Column(String(100), nullable=False)  # prescription, visit, location
+    resource_id = Column(String(36))
+
+    payload = Column(Text)  # JSON payload of the action
+    status = Column(String(50), default="pending")  # pending, synced, failed
+    attempted_at = Column(DateTime)
+    synced_at = Column(DateTime)
+    error_message = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
