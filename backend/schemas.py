@@ -145,6 +145,76 @@ class DeviceResponse(BaseModel):
 
 
 # ============================================================================
+# Patient Visit Schemas
+# ============================================================================
+
+class PatientVisitCreate(BaseModel):
+    """Create patient visit (doctor assigns nurse)"""
+    prescription_id: str
+    assigned_nurse: str  # nurse user ID
+    patient_address: str
+    scheduled_date: datetime
+
+
+class PatientVisitUpdate(BaseModel):
+    """Update patient visit"""
+    status: Optional[str] = None  # pending, in_progress, completed, cancelled
+    patient_address: Optional[str] = None
+    scheduled_date: Optional[datetime] = None
+
+
+class VisitCompleteRequest(BaseModel):
+    """Mark visit as completed with details"""
+    nurse_notes: str
+    device_serial_installed: Optional[str] = None
+    patient_signature: Optional[str] = None  # Base64 encoded signature
+
+
+class PatientVisitListResponse(BaseModel):
+    """Patient visit list response"""
+    id: str
+    prescription_id: str
+    patient_name: str  # From linked prescription
+    diagnosis: str  # From linked prescription
+    patient_address: str
+    scheduled_date: datetime
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PatientVisitDetailResponse(BaseModel):
+    """Patient visit detail response"""
+    id: str
+    prescription_id: str
+    assigned_nurse: str
+    patient_address: str
+    scheduled_date: datetime
+    status: str
+    created_at: datetime
+
+    # Linked prescription data
+    patient_name: str
+    patient_age: str
+    diagnosis: str
+    medication: str
+    dosage: str
+    duration: str
+    special_instructions: Optional[str]
+
+    # Visit completion details (if completed)
+    nurse_notes: Optional[str] = None
+    device_serial_installed: Optional[str] = None
+    patient_signature: Optional[str] = None
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # Error Schemas
 # ============================================================================
 

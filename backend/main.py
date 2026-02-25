@@ -21,7 +21,9 @@ from database import get_db, init_db, engine, Base
 from models import User, Prescription, Organization, UserRole, PatientVisit, Device
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
-    PrescriptionCreate, PrescriptionUpdate, PrescriptionResponse, PrescriptionListResponse
+    PrescriptionCreate, PrescriptionUpdate, PrescriptionResponse, PrescriptionListResponse,
+    PatientVisitCreate, PatientVisitUpdate, PatientVisitListResponse, PatientVisitDetailResponse,
+    VisitCompleteRequest
 )
 from auth import (
     hash_password, verify_password, create_access_token, verify_token, TokenData
@@ -353,6 +355,259 @@ async def update_prescription(
     logger.info(f"Prescription updated: {prescription.id}")
 
     return PrescriptionResponse.from_attributes(prescription)
+
+
+# ============================================================================
+# PATIENT VISIT ENDPOINTS (Nurse field operations)
+# ============================================================================
+
+@app.post("/api/patient-visits", response_model=dict)
+async def create_patient_visit(
+    request: PatientVisitCreate,
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Create patient visit assignment (doctor only)"""
+
+    # Verify prescription exists and belongs to org
+    prescription = db.query(Prescription).filter(
+        Prescription.id == request.prescription_id,
+        Prescription.org_id == current_user.org_id
+    ).first()
+
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Verify nurse exists and belongs to org
+    nurse = db.query(User).filter(
+        User.id == request.assigned_nurse,
+        User.org_id == current_user.org_id,
+        User.role == UserRole.NURSE
+    ).first()
+
+    if not nurse:
+        raise HTTPException(status_code=404, detail="Nurse not found")
+
+    # Create visit
+    visit = PatientVisit(
+        org_id=current_user.org_id,
+        prescription_id=request.prescription_id,
+        assigned_nurse=request.assigned_nurse,
+        patient_address=sanitize_input(request.patient_address, 500),
+        scheduled_date=request.scheduled_date,
+        status="pending",
+        created_at=datetime.utcnow()
+    )
+
+    db.add(visit)
+    db.commit()
+    db.refresh(visit)
+
+    logger.info(f"Patient visit created: {visit.id} for nurse {nurse.email}")
+
+    return {"id": visit.id, "status": "pending"}
+
+
+@app.get("/api/patient-visits", response_model=list[PatientVisitListResponse])
+async def list_patient_visits(
+    status: str = None,
+    date_from: datetime = None,
+    date_to: datetime = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List patient visits - nurses see only their visits, doctors see all"""
+
+    query = db.query(PatientVisit).filter(PatientVisit.org_id == current_user.org_id)
+
+    # Nurses see only their assigned visits
+    if current_user.role == UserRole.NURSE:
+        query = query.filter(PatientVisit.assigned_nurse == current_user.id)
+
+    # Filter by status if provided
+    if status:
+        query = query.filter(PatientVisit.status == status)
+
+    # Filter by date range
+    if date_from:
+        query = query.filter(PatientVisit.scheduled_date >= date_from)
+    if date_to:
+        query = query.filter(PatientVisit.scheduled_date <= date_to)
+
+    visits = query.order_by(PatientVisit.scheduled_date.asc()).all()
+
+    # Enrich with prescription data
+    result = []
+    for visit in visits:
+        prescription = db.query(Prescription).filter(
+            Prescription.id == visit.prescription_id
+        ).first()
+
+        if prescription:
+            response = PatientVisitListResponse(
+                id=visit.id,
+                prescription_id=visit.prescription_id,
+                patient_name=prescription.patient_name,
+                diagnosis=prescription.diagnosis,
+                patient_address=visit.patient_address,
+                scheduled_date=visit.scheduled_date,
+                status=visit.status,
+                created_at=visit.created_at
+            )
+            result.append(response)
+
+    return result
+
+
+@app.get("/api/patient-visits/{visit_id}", response_model=PatientVisitDetailResponse)
+async def get_patient_visit(
+    visit_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get patient visit details"""
+
+    visit = db.query(PatientVisit).filter(
+        PatientVisit.id == visit_id,
+        PatientVisit.org_id == current_user.org_id
+    ).first()
+
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+
+    # Nurses can only see their own visits
+    if current_user.role == UserRole.NURSE and visit.assigned_nurse != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this visit")
+
+    # Get prescription data
+    prescription = db.query(Prescription).filter(
+        Prescription.id == visit.prescription_id
+    ).first()
+
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Get visit details if completed
+    visit_detail = db.query(VisitDetail).filter(
+        VisitDetail.visit_id == visit_id
+    ).first()
+
+    response = PatientVisitDetailResponse(
+        id=visit.id,
+        prescription_id=visit.prescription_id,
+        assigned_nurse=visit.assigned_nurse,
+        patient_address=visit.patient_address,
+        scheduled_date=visit.scheduled_date,
+        status=visit.status,
+        created_at=visit.created_at,
+        patient_name=prescription.patient_name,
+        patient_age=prescription.patient_age,
+        diagnosis=prescription.diagnosis,
+        medication=prescription.medication,
+        dosage=prescription.dosage,
+        duration=prescription.duration,
+        special_instructions=prescription.special_instructions,
+        nurse_notes=visit_detail.nurse_notes if visit_detail else None,
+        device_serial_installed=visit_detail.device_id if visit_detail else None,
+        patient_signature=visit_detail.patient_signature if visit_detail else None,
+        completed_at=visit_detail.completed_at if visit_detail else None
+    )
+
+    return response
+
+
+@app.put("/api/patient-visits/{visit_id}/status")
+async def update_visit_status(
+    visit_id: str,
+    status: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update visit status (pending → in_progress → completed)"""
+
+    visit = db.query(PatientVisit).filter(
+        PatientVisit.id == visit_id,
+        PatientVisit.org_id == current_user.org_id
+    ).first()
+
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+
+    # Nurses can only update their own visits
+    if current_user.role == UserRole.NURSE and visit.assigned_nurse != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this visit")
+
+    # Validate status transition
+    valid_statuses = ["pending", "in_progress", "completed", "cancelled"]
+    if status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Invalid status")
+
+    visit.status = status
+    db.commit()
+    db.refresh(visit)
+
+    logger.info(f"Visit {visit_id} status updated to {status} by {current_user.email}")
+
+    return {"id": visit.id, "status": visit.status}
+
+
+@app.post("/api/patient-visits/{visit_id}/complete")
+async def complete_patient_visit(
+    visit_id: str,
+    request: VisitCompleteRequest,
+    current_user: User = Depends(get_nurse),
+    db: Session = Depends(get_db)
+):
+    """Mark visit as completed with notes and signature (nurse only)"""
+
+    visit = db.query(PatientVisit).filter(
+        PatientVisit.id == visit_id,
+        PatientVisit.org_id == current_user.org_id
+    ).first()
+
+    if not visit:
+        raise HTTPException(status_code=404, detail="Visit not found")
+
+    # Only assigned nurse can complete
+    if visit.assigned_nurse != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to complete this visit")
+
+    # Update visit status
+    visit.status = "completed"
+    db.commit()
+
+    # Create visit details record
+    visit_detail = VisitDetail(
+        visit_id=visit_id,
+        nurse_notes=sanitize_input(request.nurse_notes, 2000),
+        patient_signature=request.patient_signature,  # Already validated by frontend
+        completed_at=datetime.utcnow()
+    )
+
+    # Add device if provided
+    if request.device_serial_installed:
+        device = db.query(Device).filter(
+            Device.serial_number == request.device_serial_installed,
+            Device.org_id == current_user.org_id
+        ).first()
+
+        if device:
+            visit_detail.device_id = device.id
+            device.status = "in_use"
+        else:
+            logger.warning(f"Device not found: {request.device_serial_installed}")
+
+    db.add(visit_detail)
+    db.commit()
+    db.refresh(visit_detail)
+
+    logger.info(f"Visit {visit_id} completed by {current_user.email}")
+
+    return {
+        "id": visit.id,
+        "status": "completed",
+        "completed_at": visit_detail.completed_at
+    }
 
 
 # ============================================================================
