@@ -22,7 +22,8 @@ from haversine import haversine, Unit
 from database import get_db, init_db, engine, Base
 from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
-    NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue
+    NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
+    Patient, Medication, MedicationInteraction, DrugAllergy
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
@@ -32,10 +33,16 @@ from schemas import (
     NurseLocationCreate, NurseLocationResponse, PhotoResponse,
     DeviceCreate, DeviceUpdateStatus, DeviceListResponse,
     VisitAnalytics, DeviceAnalytics, NurseAnalytics,
-    OfflineQueueItem, OfflineSyncPush, OfflineSyncStatus, OfflineDataPackage, SyncConflict
+    OfflineQueueItem, OfflineSyncPush, OfflineSyncStatus, OfflineDataPackage, SyncConflict,
+    PatientCreate, PatientUpdate, PatientResponse, MedicationResponse,
+    VoicePrescriptionRequest, TextPrescriptionRequest, PrescriptionValidationResponse,
+    TranscriptionResponse
 )
 from auth import (
     hash_password, verify_password, create_access_token, verify_token, TokenData
+)
+from voice_utils import (
+    transcribe_audio, validate_medication, parse_prescription_text, structure_prescription_data
 )
 
 # Keep existing security and LLM functions
@@ -1516,6 +1523,483 @@ Médecin: {current_user.full_name}
 
     except Exception as e:
         logger.exception("PDF generation error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# PATIENT MANAGEMENT ENDPOINTS (AI-Oriented App)
+# ============================================================================
+
+@app.post("/api/patients", response_model=PatientResponse)
+async def create_patient(
+    request: PatientCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new patient"""
+    try:
+        patient = Patient(
+            id=str(uuid.uuid4()),
+            org_id=current_user.org_id,
+            first_name=request.first_name,
+            last_name=request.last_name,
+            date_of_birth=request.date_of_birth,
+            gender=request.gender,
+            phone=request.phone,
+            email=request.email,
+            allergies=json.dumps(request.allergies) if request.allergies else None,
+            chronic_conditions=json.dumps(request.chronic_conditions) if request.chronic_conditions else None,
+            current_medications=json.dumps(request.current_medications) if request.current_medications else None,
+            medical_notes=request.medical_notes
+        )
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+
+        # Convert JSON fields back to lists for response
+        patient_dict = {
+            "id": patient.id,
+            "first_name": patient.first_name,
+            "last_name": patient.last_name,
+            "date_of_birth": patient.date_of_birth,
+            "gender": patient.gender,
+            "phone": patient.phone,
+            "email": patient.email,
+            "allergies": json.loads(patient.allergies) if patient.allergies else None,
+            "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
+            "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+            "medical_notes": patient.medical_notes,
+            "created_at": patient.created_at
+        }
+        return PatientResponse(**patient_dict)
+    except Exception as e:
+        logger.exception("Patient creation error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/patients/{patient_id}", response_model=PatientResponse)
+async def get_patient(
+    patient_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get patient by ID"""
+    try:
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.org_id == current_user.org_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        patient_dict = {
+            "id": patient.id,
+            "first_name": patient.first_name,
+            "last_name": patient.last_name,
+            "date_of_birth": patient.date_of_birth,
+            "gender": patient.gender,
+            "phone": patient.phone,
+            "email": patient.email,
+            "allergies": json.loads(patient.allergies) if patient.allergies else None,
+            "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
+            "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+            "medical_notes": patient.medical_notes,
+            "created_at": patient.created_at
+        }
+        return PatientResponse(**patient_dict)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Patient retrieval error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/patients", response_model=list[PatientResponse])
+async def list_patients(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """List all patients for organization"""
+    try:
+        patients = db.query(Patient).filter(Patient.org_id == current_user.org_id).all()
+
+        result = []
+        for patient in patients:
+            patient_dict = {
+                "id": patient.id,
+                "first_name": patient.first_name,
+                "last_name": patient.last_name,
+                "date_of_birth": patient.date_of_birth,
+                "gender": patient.gender,
+                "phone": patient.phone,
+                "email": patient.email,
+                "allergies": json.loads(patient.allergies) if patient.allergies else None,
+                "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
+                "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+                "medical_notes": patient.medical_notes,
+                "created_at": patient.created_at
+            }
+            result.append(PatientResponse(**patient_dict))
+
+        return result
+    except Exception as e:
+        logger.exception("Patient listing error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/patients/{patient_id}", response_model=PatientResponse)
+async def update_patient(
+    patient_id: str,
+    request: PatientUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update patient information"""
+    try:
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.org_id == current_user.org_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Update fields if provided
+        if request.first_name is not None:
+            patient.first_name = request.first_name
+        if request.last_name is not None:
+            patient.last_name = request.last_name
+        if request.phone is not None:
+            patient.phone = request.phone
+        if request.email is not None:
+            patient.email = request.email
+        if request.allergies is not None:
+            patient.allergies = json.dumps(request.allergies)
+        if request.chronic_conditions is not None:
+            patient.chronic_conditions = json.dumps(request.chronic_conditions)
+        if request.current_medications is not None:
+            patient.current_medications = json.dumps(request.current_medications)
+        if request.medical_notes is not None:
+            patient.medical_notes = request.medical_notes
+
+        patient.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(patient)
+
+        patient_dict = {
+            "id": patient.id,
+            "first_name": patient.first_name,
+            "last_name": patient.last_name,
+            "date_of_birth": patient.date_of_birth,
+            "gender": patient.gender,
+            "phone": patient.phone,
+            "email": patient.email,
+            "allergies": json.loads(patient.allergies) if patient.allergies else None,
+            "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
+            "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+            "medical_notes": patient.medical_notes,
+            "created_at": patient.created_at
+        }
+        return PatientResponse(**patient_dict)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Patient update error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/patients/{patient_id}")
+async def delete_patient(
+    patient_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete patient (soft delete via marking as archived)"""
+    try:
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.org_id == current_user.org_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        db.delete(patient)
+        db.commit()
+
+        return {"message": "Patient deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Patient deletion error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# VOICE/TEXT PRESCRIPTION ENDPOINTS (AI-Oriented App)
+# ============================================================================
+
+@app.post("/api/voice/transcribe", response_model=TranscriptionResponse)
+async def transcribe_voice(
+    file: UploadFile = File(...),
+    language: str = "fr",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Transcribe audio file to text using Whisper"""
+    temp_audio_path = None
+    try:
+        # Save uploaded file temporarily
+        temp_dir = tempfile.gettempdir()
+        temp_audio_path = os.path.join(temp_dir, f"audio_{uuid.uuid4()}.wav")
+
+        with open(temp_audio_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+
+        # Transcribe using Whisper
+        text, confidence = transcribe_audio(temp_audio_path, language=language)
+
+        logger.info(f"Transcription completed: {len(text)} chars, confidence: {confidence:.2%}")
+
+        return TranscriptionResponse(
+            text=text,
+            confidence=confidence,
+            language=language
+        )
+    except Exception as e:
+        logger.exception("Transcription error")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup temp file
+        if temp_audio_path and os.path.exists(temp_audio_path):
+            try:
+                os.remove(temp_audio_path)
+            except:
+                pass
+
+
+@app.post("/api/prescriptions/voice", response_model=PrescriptionValidationResponse)
+async def create_voice_prescription(
+    request: VoicePrescriptionRequest,
+    file: UploadFile = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create prescription from voice input with validation"""
+    temp_audio_path = None
+    try:
+        # Get patient data
+        patient = db.query(Patient).filter(
+            Patient.id == request.patient_id,
+            Patient.org_id == current_user.org_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Transcribe audio if file provided
+        transcribed_text = None
+        if file:
+            temp_dir = tempfile.gettempdir()
+            temp_audio_path = os.path.join(temp_dir, f"audio_{uuid.uuid4()}.wav")
+
+            with open(temp_audio_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+
+            transcribed_text, _ = transcribe_audio(temp_audio_path, language="fr")
+
+        if not transcribed_text:
+            raise HTTPException(status_code=400, detail="No audio provided or transcription failed")
+
+        # Parse patient data
+        patient_allergies = json.loads(patient.allergies) if patient.allergies else []
+        patient_conditions = json.loads(patient.chronic_conditions) if patient.chronic_conditions else []
+        current_medications = json.loads(patient.current_medications) if patient.current_medications else []
+
+        # Calculate patient age
+        from datetime import datetime as dt
+        patient_age = (dt.utcnow().date() - patient.date_of_birth.date()).days // 365
+
+        # Structure and validate prescription
+        structured, validation = structure_prescription_data(
+            transcribed_text,
+            patient.id,
+            patient_age,
+            patient_conditions,
+            patient_allergies,
+            current_medications
+        )
+
+        # Save prescription if valid
+        if validation["valid"]:
+            prescription = Prescription(
+                id=str(uuid.uuid4()),
+                org_id=current_user.org_id,
+                created_by=current_user.id,
+                patient_name=f"{patient.first_name} {patient.last_name}",
+                patient_age=str(patient_age),
+                diagnosis=structured.get("diagnosis", ""),
+                medication=structured.get("medication", ""),
+                dosage=structured.get("dosage", ""),
+                duration=structured.get("duration", "30 days"),
+                special_instructions=structured.get("special_instructions"),
+                status="active"
+            )
+            db.add(prescription)
+            db.commit()
+            db.refresh(prescription)
+
+            prescription_response = PrescriptionResponse(
+                id=prescription.id,
+                patient_name=prescription.patient_name,
+                patient_age=prescription.patient_age,
+                diagnosis=prescription.diagnosis,
+                medication=prescription.medication,
+                dosage=prescription.dosage,
+                duration=prescription.duration,
+                special_instructions=prescription.special_instructions,
+                status=prescription.status,
+                created_by=prescription.created_by,
+                created_at=prescription.created_at
+            )
+        else:
+            # Return with validation errors but no saved prescription
+            prescription_response = None
+
+        patient_response = PatientResponse(
+            id=patient.id,
+            first_name=patient.first_name,
+            last_name=patient.last_name,
+            date_of_birth=patient.date_of_birth,
+            gender=patient.gender,
+            phone=patient.phone,
+            email=patient.email,
+            allergies=patient_allergies,
+            chronic_conditions=patient_conditions,
+            current_medications=current_medications,
+            medical_notes=patient.medical_notes,
+            created_at=patient.created_at
+        )
+
+        return PrescriptionValidationResponse(
+            prescription=prescription_response,
+            validation=validation,
+            patient_summary=patient_response,
+            structured_data=structured
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Voice prescription creation error")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Cleanup temp file
+        if temp_audio_path and os.path.exists(temp_audio_path):
+            try:
+                os.remove(temp_audio_path)
+            except:
+                pass
+
+
+@app.post("/api/prescriptions/text", response_model=PrescriptionValidationResponse)
+async def create_text_prescription(
+    request: TextPrescriptionRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create prescription from text input with validation"""
+    try:
+        # Get patient data
+        patient = db.query(Patient).filter(
+            Patient.id == request.patient_id,
+            Patient.org_id == current_user.org_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Parse patient data
+        patient_allergies = json.loads(patient.allergies) if patient.allergies else []
+        patient_conditions = json.loads(patient.chronic_conditions) if patient.chronic_conditions else []
+        current_medications = json.loads(patient.current_medications) if patient.current_medications else []
+
+        # Calculate patient age
+        from datetime import datetime as dt
+        patient_age = (dt.utcnow().date() - patient.date_of_birth.date()).days // 365
+
+        # Structure and validate prescription
+        structured, validation = structure_prescription_data(
+            request.prescription_text,
+            patient.id,
+            patient_age,
+            patient_conditions,
+            patient_allergies,
+            current_medications
+        )
+
+        # Save prescription if valid
+        if validation["valid"]:
+            prescription = Prescription(
+                id=str(uuid.uuid4()),
+                org_id=current_user.org_id,
+                created_by=current_user.id,
+                patient_name=f"{patient.first_name} {patient.last_name}",
+                patient_age=str(patient_age),
+                diagnosis=structured.get("diagnosis", ""),
+                medication=structured.get("medication", ""),
+                dosage=structured.get("dosage", ""),
+                duration=structured.get("duration", "30 days"),
+                special_instructions=structured.get("special_instructions"),
+                status="active"
+            )
+            db.add(prescription)
+            db.commit()
+            db.refresh(prescription)
+
+            prescription_response = PrescriptionResponse(
+                id=prescription.id,
+                patient_name=prescription.patient_name,
+                patient_age=prescription.patient_age,
+                diagnosis=prescription.diagnosis,
+                medication=prescription.medication,
+                dosage=prescription.dosage,
+                duration=prescription.duration,
+                special_instructions=prescription.special_instructions,
+                status=prescription.status,
+                created_by=prescription.created_by,
+                created_at=prescription.created_at
+            )
+        else:
+            prescription_response = None
+
+        patient_response = PatientResponse(
+            id=patient.id,
+            first_name=patient.first_name,
+            last_name=patient.last_name,
+            date_of_birth=patient.date_of_birth,
+            gender=patient.gender,
+            phone=patient.phone,
+            email=patient.email,
+            allergies=patient_allergies,
+            chronic_conditions=patient_conditions,
+            current_medications=current_medications,
+            medical_notes=patient.medical_notes,
+            created_at=patient.created_at
+        )
+
+        return PrescriptionValidationResponse(
+            prescription=prescription_response,
+            validation=validation,
+            patient_summary=patient_response,
+            structured_data=structured
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Text prescription creation error")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -219,6 +219,99 @@ class DeviceStatus(Base):
     user = relationship("User")
 
 
+class Patient(Base):
+    """Patient information"""
+    __tablename__ = "patients"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    org_id = Column(String(36), ForeignKey("organizations.id"), nullable=False)
+
+    # Personal info
+    first_name = Column(String(255), nullable=False)
+    last_name = Column(String(255), nullable=False)
+    date_of_birth = Column(DateTime, nullable=False)
+    gender = Column(String(10))  # M, F, Other
+    phone = Column(String(20))
+    email = Column(String(255))
+
+    # Medical info
+    allergies = Column(Text)  # JSON array of allergy objects
+    chronic_conditions = Column(Text)  # JSON array of conditions
+    current_medications = Column(Text)  # JSON array of current meds
+    medical_notes = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    organization = relationship("Organization")
+
+
+class Medication(Base):
+    """Medication database"""
+    __tablename__ = "medications"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    # Drug info
+    name = Column(String(255), nullable=False, unique=True)
+    generic_name = Column(String(255))
+    category = Column(String(100))  # Antibiotic, Antihypertensive, etc.
+
+    # Dosage info
+    available_dosages = Column(Text)  # JSON array of available strengths
+    unit = Column(String(50))  # mg, mcg, ml, etc.
+    min_dosage = Column(Float)
+    max_dosage = Column(Float)
+
+    # Restrictions
+    min_age = Column(Integer)  # Minimum age in years
+    max_age = Column(Integer)  # Maximum age in years (null = no max)
+    contraindications = Column(Text)  # JSON array of conditions to avoid
+
+    # Clinical info
+    description = Column(Text)
+    side_effects = Column(Text)  # JSON array
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class MedicationInteraction(Base):
+    """Drug-drug interactions"""
+    __tablename__ = "medication_interactions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+
+    medication1_id = Column(String(255), nullable=False)  # Medication name
+    medication2_id = Column(String(255), nullable=False)  # Medication name
+
+    # Interaction severity: low, moderate, high, contraindicated
+    severity = Column(String(50), nullable=False)
+
+    # Description
+    description = Column(Text)
+    recommendation = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class DrugAllergy(Base):
+    """Patient drug allergies"""
+    __tablename__ = "drug_allergies"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    patient_id = Column(String(36), ForeignKey("patients.id"), nullable=False)
+
+    medication_name = Column(String(255), nullable=False)
+    reaction_severity = Column(String(50))  # mild, moderate, severe
+    reaction_description = Column(Text)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    patient = relationship("Patient")
+
+
 class OfflineQueue(Base):
     """Queue for offline-first mobile sync"""
     __tablename__ = "offline_queue"

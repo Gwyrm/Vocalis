@@ -27,6 +27,11 @@ python-multipart
 pillow  # Image processing
 haversine  # GPS distance calculation
 
+# AI Features: Speech-to-Text & Data Validation
+openai-whisper  # Speech-to-text
+librosa  # Audio processing
+numpy  # Numerical computing
+
 # Testing
 pytest
 pytest-asyncio

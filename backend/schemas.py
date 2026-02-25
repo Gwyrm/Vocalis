@@ -1,8 +1,8 @@
 """Pydantic schemas for request/response validation"""
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List, Dict, Any
+from datetime import datetime, date
 from models import UserRole
 
 
@@ -373,6 +373,130 @@ class SyncConflict(BaseModel):
     local_updated_at: datetime
     server_updated_at: datetime
     resolution: str  # local_wins, server_wins, merge
+
+
+# ============================================================================
+# Patient Management Schemas
+# ============================================================================
+
+class PatientCreate(BaseModel):
+    """Create patient"""
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    gender: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    allergies: Optional[List[Dict[str, str]]] = None
+    chronic_conditions: Optional[List[str]] = None
+    current_medications: Optional[List[str]] = None
+    medical_notes: Optional[str] = None
+
+
+class PatientUpdate(BaseModel):
+    """Update patient"""
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    allergies: Optional[List[Dict[str, str]]] = None
+    chronic_conditions: Optional[List[str]] = None
+    current_medications: Optional[List[str]] = None
+    medical_notes: Optional[str] = None
+
+
+class PatientResponse(BaseModel):
+    """Patient response"""
+    id: str
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    gender: Optional[str]
+    phone: Optional[str]
+    email: Optional[str]
+    allergies: Optional[List[Dict[str, str]]]
+    chronic_conditions: Optional[List[str]]
+    current_medications: Optional[List[str]]
+    medical_notes: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Medication Schemas
+# ============================================================================
+
+class MedicationResponse(BaseModel):
+    """Medication info"""
+    id: str
+    name: str
+    generic_name: Optional[str]
+    category: Optional[str]
+    available_dosages: Optional[List[str]]
+    unit: Optional[str]
+    min_dosage: Optional[float]
+    max_dosage: Optional[float]
+    min_age: Optional[int]
+    max_age: Optional[int]
+    description: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
+# Prescription Validation Schemas
+# ============================================================================
+
+class ValidationWarning(BaseModel):
+    """Validation warning"""
+    type: str  # age_warning, dosage_warning, interaction_warning, allergy_warning
+    message: str
+    severity: str  # low, medium, high
+
+
+class ValidationError(BaseModel):
+    """Validation error"""
+    type: str  # missing_field, invalid_value, contraindicated
+    message: str
+    field: Optional[str] = None
+
+
+class PrescriptionValidation(BaseModel):
+    """Prescription validation result"""
+    valid: bool
+    confidence: float  # 0.0 to 1.0
+    warnings: List[ValidationWarning] = []
+    errors: List[ValidationError] = []
+
+
+class VoicePrescriptionRequest(BaseModel):
+    """Voice prescription request"""
+    patient_id: str
+    audio_url: Optional[str] = None  # If audio already uploaded
+
+
+class TextPrescriptionRequest(BaseModel):
+    """Text prescription request"""
+    patient_id: str
+    prescription_text: str
+
+
+class PrescriptionValidationResponse(BaseModel):
+    """Complete validation response"""
+    prescription: PrescriptionResponse
+    validation: PrescriptionValidation
+    patient_summary: PatientResponse
+    structured_data: Optional[Dict[str, Any]] = None
+
+
+class TranscriptionResponse(BaseModel):
+    """Speech-to-text transcription response"""
+    text: str
+    confidence: float
+    language: str = "fr"
 
 
 # ============================================================================
