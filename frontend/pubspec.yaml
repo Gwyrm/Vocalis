@@ -42,6 +42,13 @@ dependencies:
   universal_html: ^2.3.0
   open_file: ^3.5.11
 
+  # AI-Oriented App Dependencies
+  record: ^5.0.0  # Audio recording
+  intl: ^0.19.0  # Date formatting
+  shared_preferences: ^2.2.0  # Local storage (JWT token)
+  provider: ^6.1.0  # State management
+  uuid: ^4.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

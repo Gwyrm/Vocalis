@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'chat_screen.dart';
+import 'api_service.dart';
+import 'screens/patient_list_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -10,6 +11,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final apiService = ApiService();
+
     return MaterialApp(
       title: 'Vocalis AI',
       debugShowCheckedModeBanner: false,
@@ -19,9 +22,10 @@ class MyApp extends StatelessWidget {
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
           filled: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         ),
       ),
-      home: const ChatScreen(),
+      home: PatientListScreen(apiService: apiService),
     );
   }
 }
