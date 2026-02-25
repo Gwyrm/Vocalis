@@ -48,7 +48,7 @@ class User(Base):
     # Relationships
     organization = relationship("Organization", back_populates="users")
     prescriptions = relationship("Prescription", back_populates="created_by_user")
-    patient_visits = relationship("PatientVisit", back_populates="assigned_nurse")
+    patient_visits = relationship("PatientVisit", back_populates="nurse")
 
     # Unique constraint on email per organization
     __table_args__ = (

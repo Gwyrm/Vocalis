@@ -125,6 +125,7 @@ class ApiService {
     String patientId, {
     String? firstName,
     String? lastName,
+    String? gender,
     String? phone,
     String? email,
     List<String>? allergies,
@@ -137,6 +138,7 @@ class ApiService {
       final body = <String, dynamic>{};
       if (firstName != null) body['first_name'] = firstName;
       if (lastName != null) body['last_name'] = lastName;
+      if (gender != null) body['gender'] = gender;
       if (phone != null) body['phone'] = phone;
       if (email != null) body['email'] = email;
       if (allergies != null) body['allergies'] = allergies;

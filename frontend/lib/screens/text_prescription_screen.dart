@@ -74,8 +74,13 @@ class _TextPrescriptionScreenState extends State<TextPrescriptionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ordonnance texte'),
-        subtitle: Text(widget.patient.fullName),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Ordonnance texte'),
+            Text(widget.patient.fullName, style: const TextStyle(fontSize: 12)),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

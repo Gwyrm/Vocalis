@@ -5,17 +5,24 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 import os
 
 # Database configuration
+# For demo/development, use SQLite. For production, set DATABASE_URL env variable
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://vocalis:vocalis@localhost/vocalis"
+    "sqlite:///./vocalis_demo.db"  # SQLite for demo, no PostgreSQL required
 )
 
 # Create engine
-engine = create_engine(
-    DATABASE_URL,
-    echo=os.getenv("SQL_DEBUG", "false").lower() == "true",
-    pool_pre_ping=True,  # Verify connections before using
-)
+kwargs = {
+    "echo": os.getenv("SQL_DEBUG", "false").lower() == "true",
+}
+
+# SQLite needs special handling
+if DATABASE_URL.startswith("sqlite"):
+    kwargs["connect_args"] = {"check_same_thread": False}
+else:
+    kwargs["pool_pre_ping"] = True  # Verify connections before using
+
+engine = create_engine(DATABASE_URL, **kwargs)
 
 # Session factory
 SessionLocal = sessionmaker(

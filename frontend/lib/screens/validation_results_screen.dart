@@ -188,7 +188,7 @@ class ValidationResultsScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                  );
+                  ),
                 );
               }).toList(),
               const SizedBox(height: 24),
@@ -233,7 +233,7 @@ class ValidationResultsScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                  );
+                  ),
                 );
               }).toList(),
               const SizedBox(height: 24),
@@ -288,9 +288,12 @@ class ValidationResultsScreen extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.bold, width: 100),
+        SizedBox(
+          width: 100,
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
         Expanded(child: Text(value)),
       ],

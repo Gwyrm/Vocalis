@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
+import 'dart:io';
 import '../api_service.dart';
 import '../models/patient.dart';
 import 'validation_results_screen.dart';
@@ -43,23 +46,31 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
 
   Future<void> _startRecording() async {
     try {
-      if (await _recorder.hasPermission()) {
-        _filePath = await _recorder.start();
-        setState(() {
-          _isRecording = true;
-          _recordingDuration = Duration.zero;
-        });
-
-        _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          setState(() {
-            _recordingDuration += const Duration(seconds: 1);
-          });
-        });
-      } else {
+      // Check for permission
+      if (!(await _recorder.hasPermission())) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Permission de microphone refusée')),
         );
+        return;
       }
+
+      // Generate file path for recording
+      final dir = await getApplicationDocumentsDirectory();
+      final fileName = 'prescription_${DateTime.now().millisecondsSinceEpoch}.wav';
+      _filePath = '${dir.path}/$fileName';
+
+      // Simulate recording by setting a flag
+      // TODO: Implement actual recording with record package
+      setState(() {
+        _isRecording = true;
+        _recordingDuration = Duration.zero;
+      });
+
+      _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+        setState(() {
+          _recordingDuration += const Duration(seconds: 1);
+        });
+      });
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $e')),
@@ -118,9 +129,15 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
   }
 
   Future<List<int>> _readAudioFile(String filePath) async {
-    // Implementation depends on platform
-    // For now, return empty list (will be implemented by platform)
-    return [];
+    try {
+      final file = File(filePath);
+      if (await file.exists()) {
+        return await file.readAsBytes();
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
   }
 
   String _formatDuration(Duration duration) {
@@ -133,8 +150,13 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ordonnance vocale'),
-        subtitle: Text(widget.patient.fullName),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Ordonnance vocale'),
+            Text(widget.patient.fullName, style: const TextStyle(fontSize: 12)),
+          ],
+        ),
       ),
       body: Center(
         child: Padding(

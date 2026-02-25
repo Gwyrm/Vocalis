@@ -163,6 +163,56 @@ async def get_current_user(
     return user
 
 
+async def get_current_user_demo(
+    authorization: str = Header(None),
+    db: Session = Depends(get_db)
+) -> User:
+    """Get current user - allows demo mode without authentication"""
+    if not authorization:
+        # Demo mode: create/return a default demo user
+        demo_user = db.query(User).filter(User.email == "demo@demo.com").first()
+        if not demo_user:
+            org = db.query(Organization).first()
+            if not org:
+                org = Organization(name="Demo Organization", created_at=datetime.utcnow())
+                db.add(org)
+                db.flush()
+            demo_user = User(
+                email="demo@demo.com",
+                password_hash="demo",
+                full_name="Demo User",
+                role="doctor",
+                org_id=org.id,
+                created_at=datetime.utcnow()
+            )
+            db.add(demo_user)
+            db.commit()
+            db.refresh(demo_user)
+        return demo_user
+
+    # If auth header provided, validate it normally
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise ValueError("Invalid authentication scheme")
+    except (ValueError, IndexError):
+        raise HTTPException(status_code=401, detail="Invalid authorization header")
+
+    token_data = verify_token(token)
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user = db.query(User).filter(
+        User.id == token_data.user_id,
+        User.org_id == token_data.org_id
+    ).first()
+
+    if not user or not user.is_active:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    return user
+
+
 async def get_doctor(current_user: User = Depends(get_current_user)) -> User:
     """Ensure current user is a doctor"""
     if current_user.role != UserRole.DOCTOR:
@@ -1533,7 +1583,7 @@ Médecin: {current_user.full_name}
 @app.post("/api/patients", response_model=PatientResponse)
 async def create_patient(
     request: PatientCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """Create a new patient"""
@@ -1580,7 +1630,7 @@ async def create_patient(
 @app.get("/api/patients/{patient_id}", response_model=PatientResponse)
 async def get_patient(
     patient_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """Get patient by ID"""
@@ -1617,7 +1667,7 @@ async def get_patient(
 
 @app.get("/api/patients", response_model=list[PatientResponse])
 async def list_patients(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """List all patients for organization"""
@@ -1652,7 +1702,7 @@ async def list_patients(
 async def update_patient(
     patient_id: str,
     request: PatientUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """Update patient information"""
@@ -1712,7 +1762,7 @@ async def update_patient(
 @app.delete("/api/patients/{patient_id}")
 async def delete_patient(
     patient_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """Delete patient (soft delete via marking as archived)"""
@@ -1784,7 +1834,7 @@ async def transcribe_voice(
 async def create_voice_prescription(
     request: VoicePrescriptionRequest,
     file: UploadFile = File(None),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """Create prescription from voice input with validation"""
@@ -1907,7 +1957,7 @@ async def create_voice_prescription(
 @app.post("/api/prescriptions/text", response_model=PrescriptionValidationResponse)
 async def create_text_prescription(
     request: TextPrescriptionRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
 ):
     """Create prescription from text input with validation"""

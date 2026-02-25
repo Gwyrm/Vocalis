@@ -90,7 +90,7 @@ class _PatientListScreenState extends State<PatientListScreen> {
                 child: ListTile(
                   title: Text(patient.fullName),
                   subtitle: Text(
-                    '${patient.ageInYears} ans • ${patient.chronic_conditions.isEmpty ? "Pas de conditions chroniques" : patient.chronicConditions.join(", ")}',
+                    '${patient.ageInYears} ans • ${patient.chronicConditions.isEmpty ? "Pas de conditions chroniques" : patient.chronicConditions.join(", ")}',
                   ),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _navigateToPatientDetail(patient),
