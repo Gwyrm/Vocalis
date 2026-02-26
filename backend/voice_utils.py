@@ -95,6 +95,18 @@ def validate_medication(
             "field": "dosage"
         })
 
+    # Check for suspicious dosage values (e.g., "00mg", "0mg")
+    import re
+    dosage_num = re.search(r'(\d+)', dosage)
+    if dosage_num:
+        num_value = int(dosage_num.group(1))
+        if num_value == 0:
+            errors.append({
+                "type": "invalid_value",
+                "message": f"Dosage value cannot be zero: {dosage}",
+                "field": "dosage"
+            })
+
     # Check for common interactions (simplified)
     interaction_pairs = [
         ("warfarin", "aspirin"),
@@ -123,6 +135,10 @@ def validate_medication(
 def parse_prescription_text(text: str) -> Dict:
     """
     Parse prescription text using pattern matching and basic NLP
+    Handles flexible formats including:
+    - "amoxicilline 500mg trois fois par jour, 7 jours"
+    - "amoxicilline (500mg) trois fois par jour"
+    - "medication: amoxicilline dosage: 500mg"
 
     Returns dict with extracted fields:
     - patient_name
@@ -131,6 +147,8 @@ def parse_prescription_text(text: str) -> Dict:
     - duration
     - special_instructions
     """
+    import re
+
     prescription = {
         "patient_name": None,
         "medication": None,
@@ -140,17 +158,18 @@ def parse_prescription_text(text: str) -> Dict:
     }
 
     lines = text.lower().split("\n")
+    full_text = text.lower()
 
-    # Simple pattern matching
+    # Extract patient name
     for line in lines:
         if "patient" in line or "nom" in line or "name" in line:
-            # Extract patient name (simplified)
             words = line.split()
             if len(words) > 1:
                 prescription["patient_name"] = " ".join(words[-2:])
 
+    # Try colon-based extraction first (explicit format: "medication: amoxicilline")
+    for line in lines:
         if any(med in line for med in ["medication", "medicament", "drug", "medicine"]):
-            # Extract medication name
             words = line.split(":")
             if len(words) > 1:
                 prescription["medication"] = words[-1].strip()
@@ -160,13 +179,48 @@ def parse_prescription_text(text: str) -> Dict:
             if len(words) > 1:
                 prescription["dosage"] = words[-1].strip()
 
-        if "duration" in line or "duree" in line or "jours" in line or "days" in line:
+        if "duration" in line or "duree" in line:
             words = line.split(":")
             if len(words) > 1:
                 prescription["duration"] = words[-1].strip()
 
         if any(instr in line for instr in ["instruction", "note", "special", "with", "without"]):
             prescription["special_instructions"] = line.strip()
+
+    # If medication not found, try pattern-based extraction
+    if not prescription["medication"]:
+        # Pattern: word(s) followed by a dosage number (e.g., "amoxicilline 500mg" or "amoxicilline (500mg)")
+        dosage_pattern = r'([a-z]+(?:\s[a-z]+)?)\s*[\(\[]?\s*(\d+(?:\.\d+)?)\s*(?:mg|g|mcg|ml|drops?)\b'
+        match = re.search(dosage_pattern, full_text)
+        if match:
+            prescription["medication"] = match.group(1).strip()
+            prescription["dosage"] = match.group(2).strip() + " " + re.search(r'(mg|g|mcg|ml|drops?)\b', match.group(0)).group(1)
+
+    # If dosage not found, try extracting from parentheses
+    if not prescription["dosage"]:
+        # Pattern: (number + unit) anywhere in text
+        dosage_match = re.search(r'[\(\[]?\s*(\d+(?:\.\d+)?)\s*(mg|g|mcg|ml|drops?)\b', full_text)
+        if dosage_match:
+            prescription["dosage"] = dosage_match.group(1) + dosage_match.group(2)
+
+    # Extract duration (look for number + "jours", "days", "semaines", "weeks", etc.)
+    if not prescription["duration"]:
+        duration_pattern = r'(\d+)\s*(jours?|days?|semaines?|weeks?|mois|months?)'
+        duration_match = re.search(duration_pattern, full_text)
+        if duration_match:
+            prescription["duration"] = duration_match.group(1) + " " + duration_match.group(2)
+
+    # Extract frequency information if present
+    frequency_keywords = ["fois par jour", "times per day", "fois par semaine", "times per week"]
+    if not prescription["special_instructions"]:
+        for keyword in frequency_keywords:
+            if keyword in full_text:
+                # Extract context around frequency
+                idx = full_text.find(keyword)
+                context_start = max(0, idx - 30)
+                context_end = min(len(full_text), idx + len(keyword) + 30)
+                prescription["special_instructions"] = full_text[context_start:context_end].strip()
+                break
 
     return prescription
 
