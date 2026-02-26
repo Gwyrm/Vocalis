@@ -5,6 +5,7 @@ import json
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 import whisper
+from llm_utils import call_ollama
 
 logger = logging.getLogger("vocalis-backend")
 
