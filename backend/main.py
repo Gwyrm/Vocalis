@@ -5,7 +5,7 @@ Multi-user system with authentication, prescriptions, and LLM-powered assistance
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import os
@@ -115,18 +115,42 @@ app = FastAPI(
 )
 
 # Configure CORS
-cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
-cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+# For development, allow all origins; for production, specify strict origins
+if os.getenv("ENVIRONMENT", "development") == "development":
+    # Development: allow all origins (Flutter dev server uses random ports)
+    cors_origins = ["*"]
+    logger.info("CORS enabled for all origins (development mode)")
+else:
+    # Production: use strict CORS origins
+    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
+    cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+    logger.info(f"CORS enabled for origins: {cors_origins}")
 
-logger.info(f"CORS enabled for origins: {cors_origins}")
+# ============================================================================
+# CORS HANDLER - Custom middleware for all origins in development
+# ============================================================================
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=False,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization"],
-)
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    """Add CORS headers to all responses"""
+    # Handle preflight requests
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+
+    # Process actual requests
+    response = await call_next(request)
+    response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
 
 
 # ============================================================================
@@ -294,7 +318,61 @@ async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
     # Create token
     token = create_access_token(user.id, user.org_id, user.email, user.role.value)
 
-    return TokenResponse(access_token=token)
+    return TokenResponse(
+        access_token=token,
+        user={
+            "id": user.id,
+            "email": user.email,
+            "role": user.role.value,
+            "org_id": user.org_id,
+        }
+    )
+
+
+@app.post("/api/auth/demo", response_model=TokenResponse)
+async def login_demo(db: Session = Depends(get_db)):
+    """Demo login - returns demo user without password verification"""
+
+    # Get or create demo user
+    demo_user = db.query(User).filter(User.email == "demo@demo.com").first()
+    if not demo_user:
+        # Create demo organization first
+        demo_org = db.query(Organization).filter(Organization.name == "Demo Organization").first()
+        if not demo_org:
+            demo_org = Organization(name="Demo Organization")
+            db.add(demo_org)
+            db.flush()
+
+        # Create demo user
+        demo_user = User(
+            email="demo@demo.com",
+            full_name="Médecin Démo",
+            password_hash=hash_password("demo123"),
+            role=UserRole.doctor,
+            org_id=demo_org.id,
+            is_active=True,
+        )
+        db.add(demo_user)
+        db.flush()
+
+    # Update last login
+    demo_user.last_login = datetime.utcnow()
+    db.commit()
+
+    logger.info(f"Demo user logged in: {demo_user.email}")
+
+    # Create token
+    token = create_access_token(demo_user.id, demo_user.org_id, demo_user.email, demo_user.role.value)
+
+    return TokenResponse(
+        access_token=token,
+        user={
+            "id": demo_user.id,
+            "email": demo_user.email,
+            "role": demo_user.role.value,
+            "org_id": demo_user.org_id,
+        }
+    )
 
 
 @app.get("/api/auth/me", response_model=CurrentUserResponse)
@@ -1597,6 +1675,7 @@ async def create_patient(
             gender=request.gender,
             phone=request.phone,
             email=request.email,
+            address=request.address,
             allergies=json.dumps(request.allergies) if request.allergies else None,
             chronic_conditions=json.dumps(request.chronic_conditions) if request.chronic_conditions else None,
             current_medications=json.dumps(request.current_medications) if request.current_medications else None,
@@ -1615,6 +1694,7 @@ async def create_patient(
             "gender": patient.gender,
             "phone": patient.phone,
             "email": patient.email,
+            "address": patient.address,
             "allergies": json.loads(patient.allergies) if patient.allergies else None,
             "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
             "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
@@ -1651,6 +1731,7 @@ async def get_patient(
             "gender": patient.gender,
             "phone": patient.phone,
             "email": patient.email,
+            "address": patient.address,
             "allergies": json.loads(patient.allergies) if patient.allergies else None,
             "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
             "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
@@ -1684,6 +1765,7 @@ async def list_patients(
                 "gender": patient.gender,
                 "phone": patient.phone,
                 "email": patient.email,
+                "address": patient.address,
                 "allergies": json.loads(patient.allergies) if patient.allergies else None,
                 "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
                 "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
@@ -1724,6 +1806,8 @@ async def update_patient(
             patient.phone = request.phone
         if request.email is not None:
             patient.email = request.email
+        if request.address is not None:
+            patient.address = request.address
         if request.allergies is not None:
             patient.allergies = json.dumps(request.allergies)
         if request.chronic_conditions is not None:
@@ -1745,6 +1829,7 @@ async def update_patient(
             "gender": patient.gender,
             "phone": patient.phone,
             "email": patient.email,
+            "address": patient.address,
             "allergies": json.loads(patient.allergies) if patient.allergies else None,
             "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
             "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
@@ -1927,6 +2012,7 @@ async def create_voice_prescription(
             gender=patient.gender,
             phone=patient.phone,
             email=patient.email,
+            address=patient.address,
             allergies=patient_allergies,
             chronic_conditions=patient_conditions,
             current_medications=current_medications,
@@ -2033,6 +2119,7 @@ async def create_text_prescription(
             gender=patient.gender,
             phone=patient.phone,
             email=patient.email,
+            address=patient.address,
             allergies=patient_allergies,
             chronic_conditions=patient_conditions,
             current_medications=current_medications,

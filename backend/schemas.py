@@ -28,6 +28,7 @@ class TokenResponse(BaseModel):
     """JWT token response"""
     access_token: str
     token_type: str = "bearer"
+    user: dict  # Include user info {id, email, role, org_id}
 
 
 class CurrentUserResponse(BaseModel):
@@ -387,6 +388,7 @@ class PatientCreate(BaseModel):
     gender: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    address: Optional[str] = None
     allergies: Optional[List[Dict[str, str]]] = None
     chronic_conditions: Optional[List[str]] = None
     current_medications: Optional[List[str]] = None
@@ -399,6 +401,7 @@ class PatientUpdate(BaseModel):
     last_name: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
+    address: Optional[str] = None
     allergies: Optional[List[Dict[str, str]]] = None
     chronic_conditions: Optional[List[str]] = None
     current_medications: Optional[List[str]] = None
@@ -414,6 +417,7 @@ class PatientResponse(BaseModel):
     gender: Optional[str]
     phone: Optional[str]
     email: Optional[str]
+    address: Optional[str]
     allergies: Optional[List[Dict[str, str]]]
     chronic_conditions: Optional[List[str]]
     current_medications: Optional[List[str]]
@@ -486,7 +490,7 @@ class TextPrescriptionRequest(BaseModel):
 
 class PrescriptionValidationResponse(BaseModel):
     """Complete validation response"""
-    prescription: PrescriptionResponse
+    prescription: Optional[PrescriptionResponse] = None
     validation: PrescriptionValidation
     patient_summary: PatientResponse
     structured_data: Optional[Dict[str, Any]] = None

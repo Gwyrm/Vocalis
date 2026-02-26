@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../api_service.dart';
 import '../models/patient.dart';
+import '../providers/auth_provider.dart';
 import 'patient_form_screen.dart';
 import 'patient_detail_screen.dart';
 
 class PatientListScreen extends StatefulWidget {
   final ApiService apiService;
 
-  const PatientListScreen({
-    Key? key,
-    required this.apiService,
-  }) : super(key: key);
+  const PatientListScreen({Key? key, required this.apiService})
+    : super(key: key);
 
   @override
   State<PatientListScreen> createState() => _PatientListScreenState();
@@ -35,6 +35,77 @@ class _PatientListScreenState extends State<PatientListScreen> {
       appBar: AppBar(
         title: const Text('Patients'),
         elevation: 0,
+        actions: [
+          Consumer<AuthProvider>(
+            builder: (context, authProvider, _) {
+              final user = authProvider.currentUser;
+              return PopupMenuButton<String>(
+                onSelected: (value) {
+                  if (value == 'logout') {
+                    _handleLogout(context);
+                  }
+                },
+                itemBuilder: (context) {
+                  final items = <PopupMenuEntry<String>>[];
+                  if (user != null) {
+                    items.add(
+                      PopupMenuItem<String>(
+                        enabled: false,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              user.email,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              user.role,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                    items.add(const PopupMenuDivider());
+                  }
+                  items.add(
+                    const PopupMenuItem<String>(
+                      value: 'logout',
+                      child: Row(
+                        children: [
+                          Icon(Icons.logout, size: 20),
+                          SizedBox(width: 8),
+                          Text('Déconnexion'),
+                        ],
+                      ),
+                    ),
+                  );
+                  return items;
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: CircleAvatar(
+                    backgroundColor: Colors.deepPurple.shade700,
+                    radius: 18,
+                    child: Text(
+                      user?.email[0].toUpperCase() ?? '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<List<Patient>>(
         future: _patientsFuture,
@@ -66,7 +137,11 @@ class _PatientListScreenState extends State<PatientListScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.person_outline, size: 64, color: Colors.grey),
+                  const Icon(
+                    Icons.person_outline,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
                   const SizedBox(height: 16),
                   const Text('Aucun patient'),
                   const SizedBox(height: 16),
@@ -130,6 +205,37 @@ class _PatientListScreenState extends State<PatientListScreen> {
     );
     if (result == true) {
       _loadPatients();
+    }
+  }
+
+  Future<void> _handleLogout(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Déconnexion'),
+        content: const Text('Êtes-vous sûr de vouloir vous déconnecter ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Déconnexion'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && context.mounted) {
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.logout();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vous avez été déconnecté')),
+        );
+      }
     }
   }
 }

@@ -12,6 +12,7 @@ class ApiService {
   static const String _baseUrlLocal = 'http://127.0.0.1:8080';
 
   String? _token;
+  Function? _onAuthError;
 
   String get baseUrl {
     // 1. Check if provided via --dart-define
@@ -37,6 +38,14 @@ class ApiService {
     _token = token;
   }
 
+  void setOnAuthError(Function callback) {
+    _onAuthError = callback;
+  }
+
+  void _handleAuthError() {
+    _onAuthError?.call();
+  }
+
   Map<String, String> get _authHeaders {
     final headers = <String, String>{'Content-Type': 'application/json'};
     if (_token != null) {
@@ -56,6 +65,7 @@ class ApiService {
     String? gender,
     String? phone,
     String? email,
+    String? address,
     List<String>? allergies,
     List<String>? chronicConditions,
     List<String>? currentMedications,
@@ -73,6 +83,7 @@ class ApiService {
           'gender': gender,
           'phone': phone,
           'email': email,
+          'address': address,
           'allergies': allergies ?? [],
           'chronic_conditions': chronicConditions ?? [],
           'current_medications': currentMedications ?? [],
@@ -128,6 +139,7 @@ class ApiService {
     String? gender,
     String? phone,
     String? email,
+    String? address,
     List<String>? allergies,
     List<String>? chronicConditions,
     List<String>? currentMedications,
@@ -141,6 +153,7 @@ class ApiService {
       if (gender != null) body['gender'] = gender;
       if (phone != null) body['phone'] = phone;
       if (email != null) body['email'] = email;
+      if (address != null) body['address'] = address;
       if (allergies != null) body['allergies'] = allergies;
       if (chronicConditions != null) body['chronic_conditions'] = chronicConditions;
       if (currentMedications != null) body['current_medications'] = currentMedications;
@@ -309,6 +322,11 @@ class ApiService {
   // ============================================================================
 
   String _getErrorMessage(http.Response response) {
+    // Check for auth errors
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      _handleAuthError();
+    }
+
     try {
       final json = jsonDecode(response.body);
       return json['detail'] ?? 'Erreur ${response.statusCode}';
@@ -318,6 +336,11 @@ class ApiService {
   }
 
   String _getErrorMessageFromStream(http.StreamedResponse response) {
+    // Check for auth errors
+    if (response.statusCode == 401 || response.statusCode == 403) {
+      _handleAuthError();
+    }
+
     try {
       return 'Erreur ${response.statusCode}';
     } catch (_) {
