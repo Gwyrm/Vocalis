@@ -132,13 +132,14 @@ def validate_medication(
     }
 
 
-def parse_prescription_text(text: str) -> Dict:
+async def parse_prescription_text(text: str) -> Dict:
     """
-    Parse prescription text using pattern matching and basic NLP
-    Handles flexible formats including:
+    Parse prescription text using LLM (Large Language Model) for intelligent extraction.
+    Handles flexible natural language formats including:
     - "amoxicilline 500mg trois fois par jour, 7 jours"
     - "amoxicilline (500mg) trois fois par jour"
-    - "medication: amoxicilline dosage: 500mg"
+    - "Prescrire amoxicilline, dosage 500mg, pour 7 jours, trois fois par jour"
+    - Any natural language variation
 
     Returns dict with extracted fields:
     - patient_name
@@ -147,7 +148,7 @@ def parse_prescription_text(text: str) -> Dict:
     - duration
     - special_instructions
     """
-    import re
+    import json
 
     prescription = {
         "patient_name": None,
@@ -157,75 +158,61 @@ def parse_prescription_text(text: str) -> Dict:
         "special_instructions": None,
     }
 
-    lines = text.lower().split("\n")
-    full_text = text.lower()
+    # Create a structured extraction prompt
+    prompt = f"""Tu es un assistant medical spécialisé dans l'extraction d'informations d'ordonnances.
 
-    # Extract patient name
-    for line in lines:
-        if "patient" in line or "nom" in line or "name" in line:
-            words = line.split()
-            if len(words) > 1:
-                prescription["patient_name"] = " ".join(words[-2:])
+Extrais les informations suivantes du texte ci-dessous et retourne UNIQUEMENT du JSON valide (pas de texte supplémentaire):
 
-    # Try colon-based extraction first (explicit format: "medication: amoxicilline")
-    for line in lines:
-        if any(med in line for med in ["medication", "medicament", "drug", "medicine"]):
-            words = line.split(":")
-            if len(words) > 1:
-                prescription["medication"] = words[-1].strip()
+Texte de l'ordonnance:
+"{text}"
 
-        if "dosage" in line or "dose" in line or "posologie" in line:
-            words = line.split(":")
-            if len(words) > 1:
-                prescription["dosage"] = words[-1].strip()
+Retourne EXACTEMENT ce format JSON (remplace par null si non trouvé):
+{{
+    "medication": "nom du médicament",
+    "dosage": "dosage avec unité (ex: 500mg)",
+    "duration": "durée du traitement (ex: 7 jours)",
+    "special_instructions": "fréquence et instructions spéciales (ex: trois fois par jour avec repas)",
+    "patient_name": "nom du patient si mentionné"
+}}
 
-        if "duration" in line or "duree" in line:
-            words = line.split(":")
-            if len(words) > 1:
-                prescription["duration"] = words[-1].strip()
+Règles importantes:
+1. Le dosage DOIT contenir un nombre valide (pas 00, pas 0)
+2. Accepte les variations: mg, g, ml, mcg, gouttes, etc.
+3. Pour la durée: accepte jours, semaines, mois
+4. Retourne UNIQUEMENT du JSON, aucun texte avant ou après
+5. Si un champ n'est pas trouvé, utilise null"""
 
-        if any(instr in line for instr in ["instruction", "note", "special", "with", "without"]):
-            prescription["special_instructions"] = line.strip()
+    try:
+        response = await call_ollama(prompt, max_tokens=200)
 
-    # If medication not found, try pattern-based extraction
-    if not prescription["medication"]:
-        # Pattern: word(s) followed by a dosage number (e.g., "amoxicilline 500mg" or "amoxicilline (500mg)")
-        dosage_pattern = r'([a-z]+(?:\s[a-z]+)?)\s*[\(\[]?\s*(\d+(?:\.\d+)?)\s*(?:mg|g|mcg|ml|drops?)\b'
-        match = re.search(dosage_pattern, full_text)
-        if match:
-            prescription["medication"] = match.group(1).strip()
-            prescription["dosage"] = match.group(2).strip() + " " + re.search(r'(mg|g|mcg|ml|drops?)\b', match.group(0)).group(1)
+        # Try to extract JSON from response
+        json_start = response.find('{')
+        json_end = response.rfind('}') + 1
 
-    # If dosage not found, try extracting from parentheses
-    if not prescription["dosage"]:
-        # Pattern: (number + unit) anywhere in text
-        dosage_match = re.search(r'[\(\[]?\s*(\d+(?:\.\d+)?)\s*(mg|g|mcg|ml|drops?)\b', full_text)
-        if dosage_match:
-            prescription["dosage"] = dosage_match.group(1) + dosage_match.group(2)
+        if json_start >= 0 and json_end > json_start:
+            json_str = response[json_start:json_end]
+            parsed_json = json.loads(json_str)
 
-    # Extract duration (look for number + "jours", "days", "semaines", "weeks", etc.)
-    if not prescription["duration"]:
-        duration_pattern = r'(\d+)\s*(jours?|days?|semaines?|weeks?|mois|months?)'
-        duration_match = re.search(duration_pattern, full_text)
-        if duration_match:
-            prescription["duration"] = duration_match.group(1) + " " + duration_match.group(2)
+            # Map JSON response to prescription dict
+            prescription["medication"] = parsed_json.get("medication")
+            prescription["dosage"] = parsed_json.get("dosage")
+            prescription["duration"] = parsed_json.get("duration")
+            prescription["special_instructions"] = parsed_json.get("special_instructions")
+            prescription["patient_name"] = parsed_json.get("patient_name")
 
-    # Extract frequency information if present
-    frequency_keywords = ["fois par jour", "times per day", "fois par semaine", "times per week"]
-    if not prescription["special_instructions"]:
-        for keyword in frequency_keywords:
-            if keyword in full_text:
-                # Extract context around frequency
-                idx = full_text.find(keyword)
-                context_start = max(0, idx - 30)
-                context_end = min(len(full_text), idx + len(keyword) + 30)
-                prescription["special_instructions"] = full_text[context_start:context_end].strip()
-                break
+            logger.info(f"LLM parsed prescription: medication={prescription['medication']}, dosage={prescription['dosage']}")
+        else:
+            logger.warning(f"Failed to extract JSON from LLM response: {response}")
+
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error from LLM response: {e}")
+    except Exception as e:
+        logger.error(f"Error calling LLM for prescription parsing: {e}")
 
     return prescription
 
 
-def structure_prescription_data(
+async def structure_prescription_data(
     transcribed_text: str,
     patient_id: str,
     patient_age: int,
@@ -234,13 +221,13 @@ def structure_prescription_data(
     current_medications: List[str]
 ) -> Tuple[Dict, Dict]:
     """
-    Structure raw prescription text into validated data
+    Structure raw prescription text into validated data using LLM parsing.
 
     Returns:
         Tuple of (structured_prescription, validation_result)
     """
-    # Parse the text
-    parsed = parse_prescription_text(transcribed_text)
+    # Parse the text using LLM
+    parsed = await parse_prescription_text(transcribed_text)
 
     # Validate medication if present
     validation = {

@@ -2148,8 +2148,8 @@ async def create_voice_prescription(
         from datetime import datetime as dt
         patient_age = (dt.utcnow().date() - patient.date_of_birth.date()).days // 365
 
-        # Structure and validate prescription
-        structured, validation = structure_prescription_data(
+        # Structure and validate prescription using LLM
+        structured, validation = await structure_prescription_data(
             transcribed_text,
             patient.id,
             patient_age,
@@ -2256,8 +2256,8 @@ async def create_text_prescription(
         from datetime import datetime as dt
         patient_age = (dt.utcnow().date() - patient.date_of_birth.date()).days // 365
 
-        # Structure and validate prescription
-        structured, validation = structure_prescription_data(
+        # Structure and validate prescription using LLM
+        structured, validation = await structure_prescription_data(
             request.prescription_text,
             patient.id,
             patient_age,
