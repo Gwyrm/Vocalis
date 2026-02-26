@@ -2235,9 +2235,9 @@ async def create_voice_prescription(
                 diagnosis=structured.get("diagnosis", ""),
                 medication=structured.get("medication", ""),
                 dosage=structured.get("dosage", ""),
-                duration=structured.get("duration", "30 days"),
+                duration=structured.get("duration") or "30 days",
                 special_instructions=structured.get("special_instructions"),
-                status="active"
+                status="draft"
             )
             db.add(prescription)
             db.commit()
@@ -2254,7 +2254,9 @@ async def create_voice_prescription(
                 special_instructions=prescription.special_instructions,
                 status=prescription.status,
                 created_by=prescription.created_by,
-                created_at=prescription.created_at
+                created_at=prescription.created_at,
+                is_signed=prescription.is_signed,
+                doctor_signed_at=prescription.doctor_signed_at
             )
         else:
             # Return with validation errors but no saved prescription
@@ -2343,9 +2345,9 @@ async def create_text_prescription(
                 diagnosis=structured.get("diagnosis", ""),
                 medication=structured.get("medication", ""),
                 dosage=structured.get("dosage", ""),
-                duration=structured.get("duration", "30 days"),
+                duration=structured.get("duration") or "30 days",
                 special_instructions=structured.get("special_instructions"),
-                status="active"
+                status="draft"
             )
             db.add(prescription)
             db.commit()
@@ -2362,7 +2364,9 @@ async def create_text_prescription(
                 special_instructions=prescription.special_instructions,
                 status=prescription.status,
                 created_by=prescription.created_by,
-                created_at=prescription.created_at
+                created_at=prescription.created_at,
+                is_signed=prescription.is_signed,
+                doctor_signed_at=prescription.doctor_signed_at
             )
         else:
             prescription_response = None
