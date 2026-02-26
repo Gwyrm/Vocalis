@@ -108,7 +108,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        return data.map((p) => Patient.fromJson(p as Map<String, dynamic>)).toList();
+        return data
+            .map((p) => Patient.fromJson(p as Map<String, dynamic>))
+            .toList();
       } else {
         throw Exception(_getErrorMessage(response));
       }
@@ -155,8 +157,10 @@ class ApiService {
       if (email != null) body['email'] = email;
       if (address != null) body['address'] = address;
       if (allergies != null) body['allergies'] = allergies;
-      if (chronicConditions != null) body['chronic_conditions'] = chronicConditions;
-      if (currentMedications != null) body['current_medications'] = currentMedications;
+      if (chronicConditions != null)
+        body['chronic_conditions'] = chronicConditions;
+      if (currentMedications != null)
+        body['current_medications'] = currentMedications;
       if (medicalNotes != null) body['medical_notes'] = medicalNotes;
 
       final response = await http.put(
@@ -172,6 +176,28 @@ class ApiService {
       }
     } catch (e) {
       throw Exception('Erreur mise à jour patient: $e');
+    }
+  }
+
+  // ============================================================================
+  // PATIENT PRESCRIPTION HISTORY
+  // ============================================================================
+
+  Future<List<Prescription>> getPatientPrescriptions(String patientId) async {
+    final url = Uri.parse('$baseUrl/api/patients/$patientId/prescriptions');
+    try {
+      final response = await http.get(url, headers: _authHeaders);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((p) => Prescription.fromJson(p as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw Exception(_getErrorMessage(response));
+      }
+    } catch (e) {
+      throw Exception('Erreur récupération ordonnances: $e');
     }
   }
 
@@ -227,7 +253,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final responseData = await response.stream.bytesToString();
-        return PrescriptionValidationResponse.fromJson(jsonDecode(responseData));
+        return PrescriptionValidationResponse.fromJson(
+          jsonDecode(responseData),
+        );
       } else {
         throw Exception(_getErrorMessageFromStream(response));
       }
@@ -252,7 +280,9 @@ class ApiService {
       );
 
       if (response.statusCode == 200) {
-        return PrescriptionValidationResponse.fromJson(jsonDecode(response.body));
+        return PrescriptionValidationResponse.fromJson(
+          jsonDecode(response.body),
+        );
       } else {
         throw Exception(_getErrorMessage(response));
       }
@@ -278,7 +308,9 @@ class ApiService {
         final data = jsonDecode(response.body);
         return data;
       } else if (response.statusCode == 503) {
-        throw Exception('Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.');
+        throw Exception(
+          'Le modèle IA n\'est pas encore chargé. Veuillez patienter quelques secondes.',
+        );
       } else if (response.statusCode == 504) {
         throw Exception('L\'IA met trop de temps à répondre.');
       } else {
@@ -297,9 +329,7 @@ class ApiService {
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'signature_base64': signatureBase64,
-        }),
+        body: jsonEncode({'signature_base64': signatureBase64}),
       );
 
       if (response.statusCode == 200) {

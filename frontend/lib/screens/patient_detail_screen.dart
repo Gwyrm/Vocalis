@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../api_service.dart';
 import '../models/patient.dart';
+import '../models/prescription.dart';
 import 'patient_form_screen.dart';
 import 'voice_prescription_screen.dart';
 import 'text_prescription_screen.dart';
@@ -32,10 +33,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
   void _editPatient() async {
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (context) => PatientFormScreen(
-          apiService: widget.apiService,
-          patient: _patient,
-        ),
+        builder: (context) =>
+            PatientFormScreen(apiService: widget.apiService, patient: _patient),
       ),
     );
     if (result == true) {
@@ -49,9 +48,9 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
       setState(() => _patient = updated);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
       }
     }
   }
@@ -84,10 +83,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
       appBar: AppBar(
         title: Text(_patient.fullName),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            onPressed: _editPatient,
-          ),
+          IconButton(icon: const Icon(Icons.edit), onPressed: _editPatient),
         ],
       ),
       body: SingleChildScrollView(
@@ -110,10 +106,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text('${_patient.ageInYears} ans'),
-                  if (_patient.phone != null)
-                    Text(_patient.phone!),
-                  if (_patient.email != null)
-                    Text(_patient.email!),
+                  if (_patient.phone != null) Text(_patient.phone!),
+                  if (_patient.email != null) Text(_patient.email!),
                 ],
               ),
             ),
@@ -152,6 +146,174 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
               ),
             ),
 
+            // Prescription History
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Historique des ordonnances',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  FutureBuilder<List<Prescription>>(
+                    future: widget.apiService.getPatientPrescriptions(
+                      _patient.id,
+                    ),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(16),
+                            child: CircularProgressIndicator(),
+                          ),
+                        );
+                      }
+
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text(
+                              'Erreur: ${snapshot.error}',
+                              style: TextStyle(color: Colors.red.shade700),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final prescriptions = snapshot.data ?? [];
+
+                      if (prescriptions.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(
+                            'Aucune ordonnance',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
+                        );
+                      }
+
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: prescriptions.length,
+                        itemBuilder: (context, index) {
+                          final prescription = prescriptions[index];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              prescription.medication,
+                                              style: const TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Dosage: ${prescription.dosage}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                            Text(
+                                              'Durée: ${prescription.duration}',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: prescription.status == 'active'
+                                              ? Colors.green.shade100
+                                              : Colors.orange.shade100,
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          prescription.status,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color:
+                                                prescription.status == 'active'
+                                                ? Colors.green.shade700
+                                                : Colors.orange.shade700,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  if (prescription.diagnosis != null &&
+                                      prescription.diagnosis!.isNotEmpty) ...[
+                                    Text(
+                                      'Diagnostic: ${prescription.diagnosis}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                  ],
+                                  if (prescription.specialInstructions !=
+                                          null &&
+                                      prescription
+                                          .specialInstructions!
+                                          .isNotEmpty) ...[
+                                    Text(
+                                      'Instructions: ${prescription.specialInstructions}',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                  ],
+                                  Text(
+                                    'Créée le ${DateFormat('dd/MM/yyyy à HH:mm').format(prescription.createdAt)} par ${prescription.createdBy}',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+
             // Medical Information
             Padding(
               padding: const EdgeInsets.all(16),
@@ -166,10 +328,14 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                   _buildMedicalSection('Allergies', _patient.allergies),
                   const SizedBox(height: 16),
                   _buildMedicalSection(
-                      'Conditions chroniques', _patient.chronicConditions),
+                    'Conditions chroniques',
+                    _patient.chronicConditions,
+                  ),
                   const SizedBox(height: 16),
                   _buildMedicalSection(
-                      'Médicaments actuels', _patient.currentMedications),
+                    'Médicaments actuels',
+                    _patient.currentMedications,
+                  ),
                   if (_patient.medicalNotes != null &&
                       _patient.medicalNotes!.isNotEmpty) ...[
                     const SizedBox(height: 16),
@@ -206,7 +372,10 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                     children: [
                       Text(
                         'Créé le: ${DateFormat('dd/MM/yyyy HH:mm').format(_patient.createdAt)}',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                       ),
                     ],
                   ),
@@ -223,24 +392,20 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
         if (items.isEmpty)
-          Text(
-            'Aucun',
-            style: TextStyle(color: Colors.grey.shade600),
-          )
+          Text('Aucun', style: TextStyle(color: Colors.grey.shade600))
         else
           Wrap(
             spacing: 8,
             children: items
-                .map((item) => Chip(
-                      label: Text(item),
-                      backgroundColor: Colors.blue.shade100,
-                    ))
+                .map(
+                  (item) => Chip(
+                    label: Text(item),
+                    backgroundColor: Colors.blue.shade100,
+                  ),
+                )
                 .toList(),
           ),
       ],

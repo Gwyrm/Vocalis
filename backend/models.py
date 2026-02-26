@@ -63,6 +63,7 @@ class Prescription(Base):
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     org_id = Column(String(36), ForeignKey("organizations.id"), nullable=False)
     created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+    patient_id = Column(String(36), ForeignKey("patients.id"), nullable=True)
 
     # Patient information
     patient_name = Column(String(255), nullable=False)
@@ -82,6 +83,7 @@ class Prescription(Base):
     # Relationships
     organization = relationship("Organization", back_populates="prescriptions")
     created_by_user = relationship("User", back_populates="prescriptions")
+    patient = relationship("Patient", back_populates="prescriptions")
     patient_visits = relationship("PatientVisit", back_populates="prescription")
 
 
@@ -233,6 +235,7 @@ class Patient(Base):
     gender = Column(String(10))  # M, F, Other
     phone = Column(String(20))
     email = Column(String(255))
+    address = Column(String(500))  # Street address, city, postal code
 
     # Medical info
     allergies = Column(Text)  # JSON array of allergy objects
@@ -245,6 +248,7 @@ class Patient(Base):
 
     # Relationships
     organization = relationship("Organization")
+    prescriptions = relationship("Prescription", back_populates="patient")
 
 
 class Medication(Base):

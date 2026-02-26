@@ -1746,6 +1746,52 @@ async def get_patient(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/api/patients/{patient_id}/prescriptions", response_model=list[PrescriptionResponse])
+async def get_patient_prescriptions(
+    patient_id: str,
+    current_user: User = Depends(get_current_user_demo),
+    db: Session = Depends(get_db)
+):
+    """Get all prescriptions for a patient"""
+    try:
+        # Verify patient exists and belongs to user's organization
+        patient = db.query(Patient).filter(
+            Patient.id == patient_id,
+            Patient.org_id == current_user.org_id
+        ).first()
+
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Get all prescriptions for this patient, ordered by creation date (newest first)
+        prescriptions = db.query(Prescription).filter(
+            Prescription.patient_id == patient_id,
+            Prescription.org_id == current_user.org_id
+        ).order_by(Prescription.created_at.desc()).all()
+
+        return [
+            PrescriptionResponse(
+                id=p.id,
+                patient_name=p.patient_name,
+                patient_age=p.patient_age,
+                diagnosis=p.diagnosis,
+                medication=p.medication,
+                dosage=p.dosage,
+                duration=p.duration,
+                special_instructions=p.special_instructions,
+                status=p.status,
+                created_by=p.created_by_user.email if p.created_by_user else "Unknown",
+                created_at=p.created_at
+            )
+            for p in prescriptions
+        ]
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Prescription retrieval error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/patients", response_model=list[PatientResponse])
 async def list_patients(
     current_user: User = Depends(get_current_user_demo),
