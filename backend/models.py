@@ -77,8 +77,13 @@ class Prescription(Base):
     special_instructions = Column(Text)
 
     # Status
-    status = Column(String(50), default="active")  # active, completed, archived
+    status = Column(String(50), default="draft")  # draft, signed, completed, archived
     created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Doctor Signature (REQUIRED for validity)
+    doctor_signature = Column(Text, nullable=True)  # Base64 encoded PNG signature image
+    doctor_signed_at = Column(DateTime, nullable=True)  # Timestamp when doctor signed
+    is_signed = Column(Boolean, default=False)  # Quick flag for validation
 
     # Relationships
     organization = relationship("Organization", back_populates="prescriptions")

@@ -28,7 +28,7 @@ from models import (
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
     UserProfileUpdate, ChangePasswordRequest, PasswordChangeResponse,
-    PrescriptionCreate, PrescriptionUpdate, PrescriptionResponse, PrescriptionListResponse,
+    PrescriptionCreate, PrescriptionUpdate, PrescriptionSignRequest, PrescriptionResponse, PrescriptionListResponse,
     PatientVisitCreate, PatientVisitUpdate, PatientVisitListResponse, PatientVisitDetailResponse,
     VisitCompleteRequest,
     NurseLocationCreate, NurseLocationResponse, PhotoResponse,
@@ -521,7 +521,9 @@ async def create_prescription(
         special_instructions=prescription.special_instructions,
         status=prescription.status,
         created_by=prescription.created_by,
-        created_at=prescription.created_at
+        created_at=prescription.created_at,
+        is_signed=prescription.is_signed,
+        doctor_signed_at=prescription.doctor_signed_at
     )
 
 
@@ -641,7 +643,71 @@ async def update_prescription(
         special_instructions=prescription.special_instructions,
         status=prescription.status,
         created_by=prescription.created_by,
-        created_at=prescription.created_at
+        created_at=prescription.created_at,
+        is_signed=prescription.is_signed,
+        doctor_signed_at=prescription.doctor_signed_at
+    )
+
+
+@app.put("/api/prescriptions/{prescription_id}/sign", response_model=PrescriptionResponse)
+async def sign_prescription(
+    prescription_id: str,
+    request: PrescriptionSignRequest,
+    current_user: User = Depends(get_doctor),
+    db: Session = Depends(get_db)
+):
+    """Sign prescription with doctor's digital signature (doctor only)
+
+    This makes the prescription legally valid for use.
+    Signatures are stored as base64 encoded PNG images.
+    """
+
+    prescription = db.query(Prescription).filter(
+        Prescription.id == prescription_id,
+        Prescription.org_id == current_user.org_id
+    ).first()
+
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Only the doctor who created the prescription can sign it (or an admin)
+    if prescription.created_by != current_user.id and current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Only the doctor who created this prescription can sign it")
+
+    # Validate signature image
+    signature_image = validate_signature_image(request.doctor_signature)
+    if not signature_image:
+        raise HTTPException(status_code=422, detail="Invalid signature image. Must be a valid PNG file, max 1MB")
+
+    # Check if already signed
+    if prescription.is_signed:
+        raise HTTPException(status_code=400, detail="Prescription is already signed")
+
+    # Sign the prescription
+    prescription.doctor_signature = request.doctor_signature
+    prescription.doctor_signed_at = datetime.utcnow()
+    prescription.is_signed = True
+    prescription.status = "signed"  # Change status to indicate it's signed
+
+    db.commit()
+    db.refresh(prescription)
+
+    logger.info(f"Prescription signed by doctor {current_user.email}: {prescription.id}")
+
+    return PrescriptionResponse(
+        id=prescription.id,
+        patient_name=prescription.patient_name,
+        patient_age=prescription.patient_age,
+        diagnosis=prescription.diagnosis,
+        medication=prescription.medication,
+        dosage=prescription.dosage,
+        duration=prescription.duration,
+        special_instructions=prescription.special_instructions,
+        status=prescription.status,
+        created_by=prescription.created_by,
+        created_at=prescription.created_at,
+        is_signed=prescription.is_signed,
+        doctor_signed_at=prescription.doctor_signed_at
     )
 
 

@@ -90,6 +90,13 @@ class PrescriptionUpdate(BaseModel):
     discovered_medications: Optional[List[str]] = None
 
 
+class PrescriptionSignRequest(BaseModel):
+    """Request to sign a prescription with doctor's signature"""
+    doctor_signature: str  # Base64 encoded PNG signature image
+    # Optional password confirmation for extra security
+    password_confirmation: Optional[str] = None
+
+
 class PrescriptionResponse(BaseModel):
     """Prescription response"""
     id: str
@@ -103,6 +110,9 @@ class PrescriptionResponse(BaseModel):
     status: str
     created_by: str
     created_at: datetime
+    # Signature info
+    is_signed: bool
+    doctor_signed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -116,6 +126,8 @@ class PrescriptionListResponse(BaseModel):
     medication: str
     status: str
     created_at: datetime
+    is_signed: bool
+    doctor_signed_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
