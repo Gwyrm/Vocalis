@@ -40,31 +40,54 @@ class CurrentUserResponse(BaseModel):
     org_id: str
 
 
+class UserProfileUpdate(BaseModel):
+    """Update user profile (email and full_name)"""
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = Field(None, min_length=2)
+
+
+class ChangePasswordRequest(BaseModel):
+    """Change password request"""
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+
+class PasswordChangeResponse(BaseModel):
+    """Password change response"""
+    message: str
+    success: bool
+
+
 # ============================================================================
 # Prescription Schemas
 # ============================================================================
 
 class PrescriptionCreate(BaseModel):
     """Create prescription request"""
-    patient_name: str
-    patient_age: str
+    patient_id: str  # Link to patient record instead of manual entry
     diagnosis: str
     medication: str
     dosage: str
     duration: str
     special_instructions: Optional[str] = None
+    # Optional: new medical info discovered during prescription creation
+    discovered_allergies: Optional[List[str]] = None
+    discovered_conditions: Optional[List[str]] = None
+    discovered_medications: Optional[List[str]] = None
 
 
 class PrescriptionUpdate(BaseModel):
     """Update prescription request"""
-    patient_name: Optional[str] = None
-    patient_age: Optional[str] = None
     diagnosis: Optional[str] = None
     medication: Optional[str] = None
     dosage: Optional[str] = None
     duration: Optional[str] = None
     special_instructions: Optional[str] = None
     status: Optional[str] = None
+    # Optional: new medical info discovered during prescription update
+    discovered_allergies: Optional[List[str]] = None
+    discovered_conditions: Optional[List[str]] = None
+    discovered_medications: Optional[List[str]] = None
 
 
 class PrescriptionResponse(BaseModel):
@@ -418,7 +441,7 @@ class PatientResponse(BaseModel):
     phone: Optional[str]
     email: Optional[str]
     address: Optional[str]
-    allergies: Optional[List[Dict[str, str]]]
+    allergies: Optional[List[str]]
     chronic_conditions: Optional[List[str]]
     current_medications: Optional[List[str]]
     medical_notes: Optional[str]

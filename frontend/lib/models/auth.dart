@@ -39,12 +39,14 @@ class CurrentUser {
   final String email;
   final String role;
   final String organizationId;
+  final String? fullName;
 
   CurrentUser({
     required this.id,
     required this.email,
     required this.role,
     required this.organizationId,
+    this.fullName,
   });
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) {
@@ -53,6 +55,7 @@ class CurrentUser {
       email: json['email'] ?? '',
       role: json['role'] ?? 'nurse',
       organizationId: json['org_id'] ?? json['organization_id'] ?? '',
+      fullName: json['full_name'] ?? json['fullName'],
     );
   }
 

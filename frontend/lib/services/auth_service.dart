@@ -90,7 +90,89 @@ class AuthService {
       'email': authResponse.user.email,
       'role': authResponse.user.role,
       'org_id': authResponse.user.organizationId,
+      'full_name': authResponse.user.fullName,
     }));
+  }
+
+  /// Update user profile (email and full_name)
+  Future<CurrentUser> updateProfile({
+    String? email,
+    String? fullName,
+    required String token,
+  }) async {
+    final url = Uri.parse('$baseUrl/api/users/profile');
+    try {
+      final response = await http.put(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          if (email != null) 'email': email,
+          if (fullName != null) 'full_name': fullName,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final userJson = jsonDecode(response.body);
+        final updatedUser = CurrentUser.fromJson(userJson);
+
+        // Update stored user info
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_userKey, jsonEncode({
+          'id': updatedUser.id,
+          'email': updatedUser.email,
+          'role': updatedUser.role,
+          'org_id': updatedUser.organizationId,
+          'full_name': updatedUser.fullName,
+        }));
+
+        return updatedUser;
+      } else if (response.statusCode == 409) {
+        throw Exception('Email already in use');
+      } else if (response.statusCode == 422) {
+        throw Exception('Invalid input');
+      } else {
+        throw Exception('Failed to update profile: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error updating profile: $e');
+    }
+  }
+
+  /// Change user password
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String token,
+  }) async {
+    final url = Uri.parse('$baseUrl/api/users/change-password');
+    try {
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return;
+      } else if (response.statusCode == 401) {
+        throw Exception('Current password is incorrect');
+      } else if (response.statusCode == 422) {
+        throw Exception('Password must be at least 8 characters and different from current password');
+      } else {
+        throw Exception('Failed to change password: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error changing password: $e');
+    }
   }
 
   /// Clear auth data (logout)

@@ -5,6 +5,7 @@ import '../models/patient.dart';
 import '../providers/auth_provider.dart';
 import 'patient_form_screen.dart';
 import 'patient_detail_screen.dart';
+import 'profile_screen.dart';
 
 class PatientListScreen extends StatefulWidget {
   final ApiService apiService;
@@ -41,7 +42,12 @@ class _PatientListScreenState extends State<PatientListScreen> {
               final user = authProvider.currentUser;
               return PopupMenuButton<String>(
                 onSelected: (value) {
-                  if (value == 'logout') {
+                  if (value == 'profile') {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                    );
+                  } else if (value == 'logout') {
                     _handleLogout(context);
                   }
                 },
@@ -73,6 +79,18 @@ class _PatientListScreenState extends State<PatientListScreen> {
                       ),
                     );
                     items.add(const PopupMenuDivider());
+                    items.add(
+                      const PopupMenuItem<String>(
+                        value: 'profile',
+                        child: Row(
+                          children: [
+                            Icon(Icons.person, size: 20),
+                            SizedBox(width: 8),
+                            Text('Mon Profil'),
+                          ],
+                        ),
+                      ),
+                    );
                   }
                   items.add(
                     const PopupMenuItem<String>(

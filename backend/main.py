@@ -27,6 +27,7 @@ from models import (
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
+    UserProfileUpdate, ChangePasswordRequest, PasswordChangeResponse,
     PrescriptionCreate, PrescriptionUpdate, PrescriptionResponse, PrescriptionListResponse,
     PatientVisitCreate, PatientVisitUpdate, PatientVisitListResponse, PatientVisitDetailResponse,
     VisitCompleteRequest,
@@ -114,43 +115,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
-# For development, allow all origins; for production, specify strict origins
-if os.getenv("ENVIRONMENT", "development") == "development":
-    # Development: allow all origins (Flutter dev server uses random ports)
-    cors_origins = ["*"]
-    logger.info("CORS enabled for all origins (development mode)")
-else:
-    # Production: use strict CORS origins
-    cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",")
-    cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
-    logger.info(f"CORS enabled for origins: {cors_origins}")
-
 # ============================================================================
-# CORS HANDLER - Custom middleware for all origins in development
+# CORS CONFIGURATION
 # ============================================================================
 
-@app.middleware("http")
-async def add_cors_headers(request, call_next):
-    """Add CORS headers to all responses"""
-    # Handle preflight requests
-    if request.method == "OPTIONS":
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
-                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Access-Control-Max-Age": "3600",
-            }
-        )
+# Add FastAPI CORS middleware for proper CORS handling
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins in development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],
+)
 
-    # Process actual requests
-    response = await call_next(request)
-    response.headers["Access-Control-Allow-Origin"] = request.headers.get("origin", "*")
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    return response
+logger.info("CORS middleware configured - all origins allowed (development mode)")
 
 
 # ============================================================================
@@ -332,6 +311,7 @@ async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
 @app.post("/api/auth/demo", response_model=TokenResponse)
 async def login_demo(db: Session = Depends(get_db)):
     """Demo login - returns demo user without password verification"""
+    import bcrypt
 
     # Get or create demo user
     demo_user = db.query(User).filter(User.email == "demo@demo.com").first()
@@ -343,12 +323,15 @@ async def login_demo(db: Session = Depends(get_db)):
             db.add(demo_org)
             db.flush()
 
-        # Create demo user
+        # Create demo user with direct bcrypt hashing
+        salt = bcrypt.gensalt(rounds=12)
+        password_hash = bcrypt.hashpw("demo123".encode(), salt).decode()
+
         demo_user = User(
             email="demo@demo.com",
             full_name="Médecin Démo",
-            password_hash=hash_password("demo123"),
-            role=UserRole.doctor,
+            password_hash=password_hash,
+            role=UserRole.DOCTOR,
             org_id=demo_org.id,
             is_active=True,
         )
@@ -387,6 +370,72 @@ async def get_me(current_user: User = Depends(get_current_user)):
     )
 
 
+@app.put("/api/users/profile", response_model=CurrentUserResponse)
+async def update_user_profile(
+    profile_update: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update authenticated user's profile (email and full_name)"""
+
+    # Validate inputs
+    if profile_update.email:
+        # Check email uniqueness
+        existing = db.query(User).filter(
+            User.email == profile_update.email,
+            User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="Email already in use")
+        current_user.email = profile_update.email
+
+    if profile_update.full_name:
+        if not profile_update.full_name.strip():
+            raise HTTPException(status_code=422, detail="Full name cannot be empty")
+        current_user.full_name = profile_update.full_name
+
+    db.commit()
+    db.refresh(current_user)
+
+    logger.info(f"User profile updated: {current_user.email}")
+
+    return CurrentUserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        full_name=current_user.full_name,
+        role=current_user.role,
+        org_id=current_user.org_id
+    )
+
+
+@app.post("/api/users/change-password", response_model=PasswordChangeResponse)
+async def change_password(
+    password_change: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Change authenticated user's password"""
+
+    # Verify current password
+    if not verify_password(password_change.current_password, current_user.password_hash):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    # Verify new password is different from current
+    if password_change.current_password == password_change.new_password:
+        raise HTTPException(status_code=422, detail="New password must be different from current password")
+
+    # Hash and update new password
+    current_user.password_hash = hash_password(password_change.new_password)
+    db.commit()
+
+    logger.info(f"Password changed for user: {current_user.email}")
+
+    return PasswordChangeResponse(
+        message="Password changed successfully",
+        success=True
+    )
+
+
 # ============================================================================
 # PRESCRIPTION ENDPOINTS
 # ============================================================================
@@ -399,11 +448,24 @@ async def create_prescription(
 ):
     """Create a new prescription (doctor only)"""
 
+    # Fetch patient data to auto-populate name and age
+    patient = db.query(Patient).filter(
+        Patient.id == request.patient_id,
+        Patient.org_id == current_user.org_id
+    ).first()
+
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    # Calculate patient age
+    patient_age = (datetime.utcnow().date() - patient.date_of_birth.date()).days // 365
+
     prescription = Prescription(
         org_id=current_user.org_id,
         created_by=current_user.id,
-        patient_name=sanitize_input(request.patient_name, 200),
-        patient_age=sanitize_input(request.patient_age, 100),
+        patient_id=patient.id,
+        patient_name=f"{patient.first_name} {patient.last_name}",
+        patient_age=str(patient_age),
         diagnosis=sanitize_input(request.diagnosis, 500),
         medication=sanitize_input(request.medication, 200),
         dosage=sanitize_input(request.dosage, 200),
@@ -416,9 +478,51 @@ async def create_prescription(
     db.commit()
     db.refresh(prescription)
 
+    # Update patient record with discovered medical information if provided
+    if request.discovered_allergies or request.discovered_conditions or request.discovered_medications:
+        patient_allergies = json.loads(patient.allergies) if patient.allergies else []
+        patient_conditions = json.loads(patient.chronic_conditions) if patient.chronic_conditions else []
+        patient_medications = json.loads(patient.current_medications) if patient.current_medications else []
+
+        # Add new discoveries (avoid duplicates)
+        if request.discovered_allergies:
+            for allergy in request.discovered_allergies:
+                if allergy not in patient_allergies:
+                    patient_allergies.append(allergy)
+
+        if request.discovered_conditions:
+            for condition in request.discovered_conditions:
+                if condition not in patient_conditions:
+                    patient_conditions.append(condition)
+
+        if request.discovered_medications:
+            for medication in request.discovered_medications:
+                if medication not in patient_medications:
+                    patient_medications.append(medication)
+
+        patient.allergies = json.dumps(patient_allergies)
+        patient.chronic_conditions = json.dumps(patient_conditions)
+        patient.current_medications = json.dumps(patient_medications)
+        patient.updated_at = datetime.utcnow()
+
+        db.commit()
+        logger.info(f"Patient {patient.id} medical info updated via prescription {prescription.id}")
+
     logger.info(f"Prescription created: {prescription.id} by {current_user.email}")
 
-    return PrescriptionResponse.from_attributes(prescription)
+    return PrescriptionResponse(
+        id=prescription.id,
+        patient_name=prescription.patient_name,
+        patient_age=prescription.patient_age,
+        diagnosis=prescription.diagnosis,
+        medication=prescription.medication,
+        dosage=prescription.dosage,
+        duration=prescription.duration,
+        special_instructions=prescription.special_instructions,
+        status=prescription.status,
+        created_by=prescription.created_by,
+        created_at=prescription.created_at
+    )
 
 
 @app.get("/api/prescriptions/{prescription_id}", response_model=PrescriptionResponse)
@@ -476,10 +580,6 @@ async def update_prescription(
         raise HTTPException(status_code=404, detail="Prescription not found")
 
     # Update fields
-    if request.patient_name:
-        prescription.patient_name = sanitize_input(request.patient_name, 200)
-    if request.patient_age:
-        prescription.patient_age = sanitize_input(request.patient_age, 100)
     if request.diagnosis:
         prescription.diagnosis = sanitize_input(request.diagnosis, 500)
     if request.medication:
@@ -496,9 +596,53 @@ async def update_prescription(
     db.commit()
     db.refresh(prescription)
 
+    # Update patient record with discovered medical information if provided
+    if (request.discovered_allergies or request.discovered_conditions or request.discovered_medications) and prescription.patient_id:
+        patient = db.query(Patient).filter(Patient.id == prescription.patient_id).first()
+        if patient:
+            patient_allergies = json.loads(patient.allergies) if patient.allergies else []
+            patient_conditions = json.loads(patient.chronic_conditions) if patient.chronic_conditions else []
+            patient_medications = json.loads(patient.current_medications) if patient.current_medications else []
+
+            # Add new discoveries (avoid duplicates)
+            if request.discovered_allergies:
+                for allergy in request.discovered_allergies:
+                    if allergy not in patient_allergies:
+                        patient_allergies.append(allergy)
+
+            if request.discovered_conditions:
+                for condition in request.discovered_conditions:
+                    if condition not in patient_conditions:
+                        patient_conditions.append(condition)
+
+            if request.discovered_medications:
+                for medication in request.discovered_medications:
+                    if medication not in patient_medications:
+                        patient_medications.append(medication)
+
+            patient.allergies = json.dumps(patient_allergies)
+            patient.chronic_conditions = json.dumps(patient_conditions)
+            patient.current_medications = json.dumps(patient_medications)
+            patient.updated_at = datetime.utcnow()
+
+            db.commit()
+            logger.info(f"Patient {patient.id} medical info updated via prescription update {prescription.id}")
+
     logger.info(f"Prescription updated: {prescription.id}")
 
-    return PrescriptionResponse.from_attributes(prescription)
+    return PrescriptionResponse(
+        id=prescription.id,
+        patient_name=prescription.patient_name,
+        patient_age=prescription.patient_age,
+        diagnosis=prescription.diagnosis,
+        medication=prescription.medication,
+        dosage=prescription.dosage,
+        duration=prescription.duration,
+        special_instructions=prescription.special_instructions,
+        status=prescription.status,
+        created_by=prescription.created_by,
+        created_at=prescription.created_at
+    )
 
 
 # ============================================================================

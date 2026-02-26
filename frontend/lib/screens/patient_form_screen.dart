@@ -22,6 +22,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
   late TextEditingController _lastNameController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
+  late TextEditingController _addressController;
   late TextEditingController _notesController;
 
   DateTime? _dateOfBirth;
@@ -39,6 +40,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     _lastNameController = TextEditingController(text: widget.patient?.lastName ?? '');
     _phoneController = TextEditingController(text: widget.patient?.phone ?? '');
     _emailController = TextEditingController(text: widget.patient?.email ?? '');
+    _addressController = TextEditingController(text: widget.patient?.address ?? '');
     _notesController = TextEditingController(text: widget.patient?.medicalNotes ?? '');
     _dateOfBirth = widget.patient?.dateOfBirth;
     _gender = widget.patient?.gender;
@@ -53,6 +55,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
     _lastNameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _addressController.dispose();
     _notesController.dispose();
     super.dispose();
   }
@@ -90,6 +93,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
           lastName: _lastNameController.text,
           phone: _phoneController.text,
           email: _emailController.text,
+          address: _addressController.text.isNotEmpty ? _addressController.text : null,
           gender: _gender,
           allergies: _allergies,
           chronicConditions: _chronicConditions,
@@ -104,6 +108,7 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
           dateOfBirth: _dateOfBirth!,
           phone: _phoneController.text,
           email: _emailController.text,
+          address: _addressController.text.isNotEmpty ? _addressController.text : null,
           gender: _gender,
           allergies: _allergies,
           chronicConditions: _chronicConditions,
@@ -265,6 +270,11 @@ class _PatientFormScreenState extends State<PatientFormScreen> {
               controller: _emailController,
               decoration: const InputDecoration(labelText: 'Email'),
               keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _addressController,
+              decoration: const InputDecoration(labelText: 'Adresse'),
             ),
             const SizedBox(height: 24),
 

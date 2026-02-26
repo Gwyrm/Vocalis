@@ -6,6 +6,7 @@ class Patient {
   final String? gender;
   final String? phone;
   final String? email;
+  final String? address;
   final List<String> allergies;
   final List<String> chronicConditions;
   final List<String> currentMedications;
@@ -20,6 +21,7 @@ class Patient {
     this.gender,
     this.phone,
     this.email,
+    this.address,
     required this.allergies,
     required this.chronicConditions,
     required this.currentMedications,
@@ -48,6 +50,7 @@ class Patient {
       gender: json['gender'] as String?,
       phone: json['phone'] as String?,
       email: json['email'] as String?,
+      address: json['address'] as String?,
       allergies: List<String>.from(json['allergies'] as List? ?? []),
       chronicConditions: List<String>.from(json['chronic_conditions'] as List? ?? []),
       currentMedications: List<String>.from(json['current_medications'] as List? ?? []),
@@ -63,6 +66,7 @@ class Patient {
     'gender': gender,
     'phone': phone,
     'email': email,
+    'address': address,
     'allergies': allergies,
     'chronic_conditions': chronicConditions,
     'current_medications': currentMedications,

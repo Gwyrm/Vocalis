@@ -69,18 +69,27 @@ class MyApp extends StatelessWidget {
 }
 
 /// Routes to appropriate screen based on auth state
-class _AppRouter extends StatelessWidget {
+class _AppRouter extends StatefulWidget {
   const _AppRouter();
+
+  @override
+  State<_AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<_AppRouter> {
+  @override
+  void initState() {
+    super.initState();
+    // Check auth on startup
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().checkAuth();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
-        // Show splash while initializing
-        if (authProvider.token == null && authProvider.currentUser == null) {
-          return const SplashScreen();
-        }
-
         // If authenticated, show main app
         if (authProvider.isAuthenticated) {
           return PatientListScreen(
@@ -88,7 +97,7 @@ class _AppRouter extends StatelessWidget {
           );
         }
 
-        // If not authenticated, show login
+        // If not authenticated, show login (default)
         return const LoginScreen();
       },
     );

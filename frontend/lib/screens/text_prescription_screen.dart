@@ -55,6 +55,7 @@ class _TextPrescriptionScreenState extends State<TextPrescriptionScreen> {
             builder: (context) => ValidationResultsScreen(
               result: result,
               patient: widget.patient,
+              apiService: widget.apiService,
             ),
           ),
         );

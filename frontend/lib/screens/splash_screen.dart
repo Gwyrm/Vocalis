@@ -17,17 +17,31 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAuth() async {
-    // Small delay for splash screen visibility
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      // Small delay for splash screen visibility
+      await Future.delayed(const Duration(milliseconds: 1000));
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final authProvider = context.read<AuthProvider>();
-    await authProvider.checkAuth();
+      final authProvider = context.read<AuthProvider>();
+      await authProvider.checkAuth();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    // Navigation is handled by main.dart based on auth state
+      // Wait a bit more to ensure state is updated
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Navigation is handled by main.dart based on auth state
+      // Force a rebuild by checking the auth state again
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      print('Error during auth check: $e');
+      if (mounted) {
+        setState(() {});
+      }
+    }
   }
 
   @override
