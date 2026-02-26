@@ -543,7 +543,7 @@ async def get_prescription(
     if not prescription:
         raise HTTPException(status_code=404, detail="Prescription not found")
 
-    return PrescriptionResponse.from_attributes(prescription)
+    return prescription
 
 
 @app.get("/api/prescriptions", response_model=list[PrescriptionListResponse])
