@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:record/record.dart';
 import 'dart:async';
 import 'dart:io';
@@ -91,8 +92,14 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       if (!mounted) return;
       setState(() => _isRecording = false);
 
-      if (_filePath != null) {
-        _processRecording();
+      // On web, recording might not be available, so set a dummy path for demo
+      if (_filePath == null || _filePath!.isEmpty) {
+        _filePath = 'recording_demo_${DateTime.now().millisecondsSinceEpoch}.wav';
+      }
+
+      if (_filePath != null && _filePath!.isNotEmpty) {
+        // Wait a moment before auto-processing, or let user click button
+        // Don't auto-process on web, let user click the button
       }
     } catch (e) {
       if (!mounted) return;
@@ -106,8 +113,18 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      // Read the audio file
+      // Read the audio file (on web, this will be empty)
       final audioBytes = await _readAudioFile(_filePath!);
+
+      // On web with no audio, show a text input dialog for demo purposes
+      if (audioBytes.isEmpty && kIsWeb) {
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+
+        // Show a dialog to enter prescription text as a fallback
+        _showTextFallbackDialog();
+        return;
+      }
 
       // Create prescription with voice
       final result = await widget.apiService.createVoicePrescription(
@@ -153,6 +170,73 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60);
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  void _showTextFallbackDialog() {
+    final textController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Entrer l\'ordonnance en texte'),
+        content: SingleChildScrollView(
+          child: TextField(
+            controller: textController,
+            maxLines: 5,
+            decoration: const InputDecoration(
+              hintText: 'Entrez ou décrivez votre ordonnance...',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (textController.text.isNotEmpty) {
+                _processTextPrescription(textController.text);
+              }
+            },
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _processTextPrescription(String prescriptionText) async {
+    setState(() => _isProcessing = true);
+
+    try {
+      final result = await widget.apiService.createTextPrescription(
+        patientId: widget.patient.id,
+        prescriptionText: prescriptionText,
+      );
+
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ValidationResultsScreen(
+              result: result,
+              patient: widget.patient,
+              apiService: widget.apiService,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
+    }
   }
 
   @override
