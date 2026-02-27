@@ -79,6 +79,8 @@ class Prescription {
   final String status;
   final String createdBy;
   final DateTime createdAt;
+  final bool isSigned;
+  final DateTime? doctorSignedAt;
 
   Prescription({
     required this.id,
@@ -92,6 +94,8 @@ class Prescription {
     required this.status,
     required this.createdBy,
     required this.createdAt,
+    this.isSigned = false,
+    this.doctorSignedAt,
   });
 
   factory Prescription.fromJson(Map<String, dynamic> json) {
@@ -107,6 +111,10 @@ class Prescription {
       status: json['status'] as String,
       createdBy: json['created_by'] as String,
       createdAt: DateTime.parse(json['created_at'] as String),
+      isSigned: json['is_signed'] as bool? ?? false,
+      doctorSignedAt: json['doctor_signed_at'] != null
+          ? DateTime.parse(json['doctor_signed_at'] as String)
+          : null,
     );
   }
 }

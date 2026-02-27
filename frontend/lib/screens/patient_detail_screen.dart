@@ -77,6 +77,127 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
     );
   }
 
+  void _showSignPrescriptionDialog(Prescription prescription) {
+    final notesController = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Signer l\'ordonnance'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Médicament: ${prescription.medication}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Dosage: ${prescription.dosage}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                Text(
+                  'Durée: ${prescription.duration}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                if (prescription.diagnosis.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Diagnostic: ${prescription.diagnosis}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Notes du docteur (optionnel):',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: notesController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    hintText: 'Entrez vos notes (optionnel)',
+                    enabled: !isLoading,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      setState(() => isLoading = true);
+                      try {
+                        await widget.apiService.signPrescription(
+                          prescription.id,
+                          notesController.text.isEmpty
+                              ? null
+                              : notesController.text,
+                        );
+
+                        if (mounted) {
+                          if (mounted) {
+                            Navigator.pop(dialogContext);
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text(
+                                  'Ordonnance signée avec succès',
+                                ),
+                                backgroundColor: Colors.green.shade600,
+                              ),
+                            );
+                          }
+                          _refreshPatient();
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          setState(() => isLoading = false);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Erreur: $e'),
+                                backgroundColor: Colors.red.shade600,
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
+                      ),
+                    )
+                  : const Text('Signer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -242,30 +363,60 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                           ],
                                         ),
                                       ),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 4,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: prescription.status == 'active'
-                                              ? Colors.green.shade100
-                                              : Colors.orange.shade100,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: prescription.status == 'active'
+                                                  ? Colors.green.shade100
+                                                  : Colors.orange.shade100,
+                                              borderRadius: BorderRadius.circular(
+                                                4,
+                                              ),
+                                            ),
+                                            child: Text(
+                                              prescription.status,
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color:
+                                                    prescription.status == 'active'
+                                                    ? Colors.green.shade700
+                                                    : Colors.orange.shade700,
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                        child: Text(
-                                          prescription.status,
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.bold,
-                                            color:
-                                                prescription.status == 'active'
-                                                ? Colors.green.shade700
-                                                : Colors.orange.shade700,
+                                          const SizedBox(height: 4),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 6,
+                                              vertical: 2,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: prescription.isSigned
+                                                  ? Colors.green.shade100
+                                                  : Colors.orange.shade100,
+                                              borderRadius: BorderRadius.circular(3),
+                                            ),
+                                            child: Text(
+                                              prescription.isSigned
+                                                  ? '✓ Signée'
+                                                  : '⏳ À signer',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: prescription.isSigned
+                                                    ? Colors.green.shade700
+                                                    : Colors.orange.shade700,
+                                              ),
+                                            ),
                                           ),
-                                        ),
+                                        ],
                                       ),
                                     ],
                                   ),
@@ -302,6 +453,34 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                       color: Colors.grey.shade500,
                                     ),
                                   ),
+                                  if (prescription.isSigned &&
+                                      prescription.doctorSignedAt != null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Signée le ${DateFormat('dd/MM/yyyy à HH:mm').format(prescription.doctorSignedAt!)}',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.green.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                  if (!prescription.isSigned) ...[
+                                    const SizedBox(height: 12),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () =>
+                                            _showSignPrescriptionDialog(
+                                          prescription,
+                                        ),
+                                        icon: const Icon(Icons.edit_document),
+                                        label: const Text('Signer'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),

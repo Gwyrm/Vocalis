@@ -435,6 +435,25 @@ class ApiService {
     }
   }
 
+  Future<Prescription> signPrescription(
+    String prescriptionId,
+    String? doctorNotes,
+  ) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/sign'),
+      headers: _authHeaders,
+      body: jsonEncode({
+        'doctor_notes': doctorNotes,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return Prescription.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
   // ============================================================================
   // PATIENT VISITS / DELIVERIES ENDPOINTS
   // ============================================================================

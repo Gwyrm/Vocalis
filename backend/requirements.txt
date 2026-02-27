@@ -13,7 +13,7 @@ alembic
 
 # Authentication & Security
 python-jose[cryptography]
-passlib[bcrypt]
+passlib[bcrypt,argon2]
 python-multipart
 
 # Validation & Configuration

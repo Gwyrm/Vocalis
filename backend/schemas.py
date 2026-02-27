@@ -92,7 +92,8 @@ class PrescriptionUpdate(BaseModel):
 
 class PrescriptionSignRequest(BaseModel):
     """Request to sign a prescription with doctor's signature"""
-    doctor_signature: str  # Base64 encoded PNG signature image
+    doctor_signature: Optional[str] = None  # Base64 encoded PNG signature image (optional for demo)
+    doctor_notes: Optional[str] = None  # Optional notes from doctor
     # Optional password confirmation for extra security
     password_confirmation: Optional[str] = None
 

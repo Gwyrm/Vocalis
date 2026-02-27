@@ -632,10 +632,11 @@ async def sign_prescription(
     if prescription.created_by != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Only the doctor who created this prescription can sign it")
 
-    # Validate signature image
-    signature_image = validate_signature_image(request.doctor_signature)
-    if not signature_image:
-        raise HTTPException(status_code=422, detail="Invalid signature image. Must be a valid PNG file, max 1MB")
+    # Validate signature image if provided
+    if request.doctor_signature:
+        signature_image = validate_signature_image(request.doctor_signature)
+        if not signature_image:
+            raise HTTPException(status_code=422, detail="Invalid signature image. Must be a valid PNG file, max 1MB")
 
     # Check if already signed
     if prescription.is_signed:
