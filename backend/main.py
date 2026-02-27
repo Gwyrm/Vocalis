@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from haversine import haversine, Unit
 
 # Local imports
-from database import get_db, init_db, engine, Base
+from database import get_db, get_db_for_user, init_db, engine, Base, DEMO_ACCOUNT_EMAIL
 from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
@@ -136,11 +136,28 @@ logger.info("CORS middleware configured - all origins allowed (development mode)
 # DEPENDENCIES
 # ============================================================================
 
+def _extract_email_from_token(authorization: str) -> str:
+    """Extract email from JWT token without database access"""
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise ValueError("Invalid authentication scheme")
+        token_data = verify_token(token)
+        if not token_data:
+            return None
+        return token_data.email
+    except Exception:
+        return None
+
+
 async def get_current_user(
     authorization: str = Header(None),
     db: Session = Depends(get_db)
 ) -> User:
-    """Get current authenticated user from JWT token"""
+    """Get current authenticated user from JWT token
+
+    Uses demo.db for demo account, vocalis.db for others
+    """
     if not authorization:
         raise HTTPException(status_code=401, detail="Missing authorization header")
 
@@ -154,6 +171,12 @@ async def get_current_user(
     token_data = verify_token(token)
     if not token_data:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # Use appropriate database based on email
+    if token_data.email.lower() == DEMO_ACCOUNT_EMAIL.lower():
+        db.close()  # Close the default production db session
+        db_generator = get_db_for_user(token_data.email)
+        db = next(db_generator)
 
     user = db.query(User).filter(
         User.id == token_data.user_id,
@@ -229,7 +252,15 @@ async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
-    """Login user and return JWT token"""
+    """Login user and return JWT token
+
+    Demo account uses demo.db, other accounts use vocalis.db
+    """
+    # Use correct database based on email
+    if request.email.lower() == DEMO_ACCOUNT_EMAIL.lower():
+        db.close()
+        db_generator = get_db_for_user(request.email)
+        db = next(db_generator)
 
     user = db.query(User).filter(User.email == request.email).first()
     if not user or not verify_password(request.password, user.password_hash):
