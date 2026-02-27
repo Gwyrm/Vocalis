@@ -304,8 +304,8 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
 
               const SizedBox(height: 32),
 
-              // Transcribe Button
-              if (_filePath != null && !_isRecording && !_isProcessing)
+              // Transcribe Button - Show when recording is stopped and not processing
+              if (!_isRecording && !_isProcessing)
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -318,7 +318,7 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
               const SizedBox(height: 16),
 
               // Retry Button
-              if (_filePath != null && !_isProcessing)
+              if (!_isRecording && !_isProcessing)
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
