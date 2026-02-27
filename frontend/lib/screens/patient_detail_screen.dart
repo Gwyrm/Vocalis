@@ -178,14 +178,16 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                           signatureBase64 = prefs.getString('last_doctor_signature');
                         } else if (!signatureController.isEmpty) {
                           // Get new signature
-                          final ui.Image image = await signatureController.toImage();
-                          final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-                          final bytes = byteData!.buffer.asUint8List();
-                          signatureBase64 = base64Encode(bytes);
+                          final ui.Image? image = await signatureController.toImage();
+                          if (image != null) {
+                            final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                            final bytes = byteData!.buffer.asUint8List();
+                            signatureBase64 = base64Encode(bytes);
 
-                          // Save for next time
-                          final prefs = await SharedPreferences.getInstance();
-                          await prefs.setString('last_doctor_signature', signatureBase64);
+                            // Save for next time
+                            final prefs = await SharedPreferences.getInstance();
+                            await prefs.setString('last_doctor_signature', signatureBase64);
+                          }
                         }
 
                         if (signatureBase64 == null) {
