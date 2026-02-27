@@ -4,6 +4,7 @@ import 'api_service.dart';
 import 'providers/auth_provider.dart';
 import 'screens/patient_list_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/nurse/nurse_deliveries_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -68,14 +69,24 @@ class _AppRouterState extends State<_AppRouter> {
   Widget build(BuildContext context) {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
-        // If authenticated, show main app
+        // If authenticated, show role-based screen
         if (authProvider.isAuthenticated) {
-          return PatientListScreen(
-            apiService: context.read<ApiService>(),
-          );
+          final apiService = context.read<ApiService>();
+          final userRole = authProvider.currentUser?.role;
+
+          // Role-based navigation
+          if (userRole == 'nurse') {
+            return NurseDeliveriesScreen(apiService: apiService);
+          } else if (userRole == 'admin') {
+            // TODO: Add admin dashboard
+            return PatientListScreen(apiService: apiService);
+          } else {
+            // Default to doctor/patient list screen
+            return PatientListScreen(apiService: apiService);
+          }
         }
 
-        // If not authenticated, show login (default)
+        // If not authenticated, show login
         return const LoginScreen();
       },
     );

@@ -346,6 +346,148 @@ class ApiService {
   }
 
   // ============================================================================
+  // DEVICE MANAGEMENT ENDPOINTS
+  // ============================================================================
+
+  Future<List<dynamic>> getDevices() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/devices'),
+      headers: _authHeaders,
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data;
+    } else {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
+  Future<void> assignDeviceToPrescription(
+    String prescriptionId,
+    String deviceId,
+    int quantity,
+    String? instructions,
+    String priority,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/devices'),
+      headers: _authHeaders,
+      body: jsonEncode({
+        'device_id': deviceId,
+        'quantity': quantity,
+        'instructions': instructions,
+        'priority': priority,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
+  Future<List<dynamic>> getPrescriptionDevices(String prescriptionId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/devices'),
+      headers: _authHeaders,
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data;
+    } else {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
+  Future<void> removeDeviceFromPrescription(
+    String prescriptionId,
+    String deviceId,
+  ) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/devices/$deviceId'),
+      headers: _authHeaders,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
+  Future<void> completeDeviceDelivery(
+    String visitId,
+    String deviceSerialInstalled,
+    String nurseNotes,
+    String? patientSignature,
+  ) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/patient-visits/$visitId/complete'),
+      headers: _authHeaders,
+      body: jsonEncode({
+        'device_serial_installed': deviceSerialInstalled,
+        'nurse_notes': nurseNotes,
+        'patient_signature': patientSignature,
+      }),
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
+  // ============================================================================
+  // PATIENT VISITS / DELIVERIES ENDPOINTS
+  // ============================================================================
+
+  Future<List<dynamic>> getPatientVisits() async {
+    final url = Uri.parse('$baseUrl/api/patient-visits');
+    try {
+      final response = await http.get(url, headers: _authHeaders);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data;
+      } else {
+        throw Exception(_getErrorMessage(response));
+      }
+    } catch (e) {
+      throw Exception('Erreur récupération visites: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getVisitDetails(String visitId) async {
+    final url = Uri.parse('$baseUrl/api/patient-visits/$visitId');
+    try {
+      final response = await http.get(url, headers: _authHeaders);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception(_getErrorMessage(response));
+      }
+    } catch (e) {
+      throw Exception('Erreur récupération détails visite: $e');
+    }
+  }
+
+  Future<void> updateVisitStatus(String visitId, String status) async {
+    final url = Uri.parse('$baseUrl/api/patient-visits/$visitId/status');
+    try {
+      final response = await http.put(
+        url,
+        headers: _authHeaders,
+        body: jsonEncode({'status': status}),
+      );
+
+      if (response.statusCode != 200) {
+        throw Exception(_getErrorMessage(response));
+      }
+    } catch (e) {
+      throw Exception('Erreur mise à jour statut: $e');
+    }
+  }
+
+  // ============================================================================
   // HELPER METHODS
   // ============================================================================
 
