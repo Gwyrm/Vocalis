@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from haversine import haversine, Unit
 
 # Local imports
-from database import get_db, get_db_for_user, init_db, prod_engine, Base, DEMO_ACCOUNT_EMAIL
+from database import get_db, get_db_for_user, init_db, prod_engine, Base, DEMO_ACCOUNT_EMAIL, DemoSessionLocal
 from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
@@ -170,7 +170,7 @@ async def get_db_for_request(authorization: str = Header(None)) -> Session:
 
 async def get_current_user(
     authorization: str = Header(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ) -> User:
     """Get current authenticated user from JWT token
 
@@ -277,8 +277,7 @@ async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
     # Use correct database based on email
     if request.email.lower() == DEMO_ACCOUNT_EMAIL.lower():
         db.close()
-        db_generator = get_db_for_user(request.email)
-        db = next(db_generator)
+        db = DemoSessionLocal()
 
     user = db.query(User).filter(User.email == request.email).first()
     if not user or not verify_password(request.password, user.password_hash):
@@ -323,7 +322,7 @@ async def get_me(current_user: User = Depends(get_current_user)):
 async def update_user_profile(
     profile_update: UserProfileUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Update authenticated user's profile (email and full_name)"""
 
@@ -361,7 +360,7 @@ async def update_user_profile(
 async def change_password(
     password_change: ChangePasswordRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Change authenticated user's password"""
 
@@ -393,7 +392,7 @@ async def change_password(
 async def create_prescription(
     request: PrescriptionCreate,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Create a new prescription (doctor only)"""
 
@@ -480,7 +479,7 @@ async def create_prescription(
 async def get_prescription(
     prescription_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get prescription details"""
 
@@ -499,7 +498,7 @@ async def get_prescription(
 async def list_prescriptions(
     status: str = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """List prescriptions (filtered by organization)"""
 
@@ -518,7 +517,7 @@ async def update_prescription(
     prescription_id: str,
     request: PrescriptionUpdate,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Update prescription (doctor only)"""
 
@@ -603,7 +602,7 @@ async def sign_prescription(
     prescription_id: str,
     request: PrescriptionSignRequest,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Sign prescription with doctor's digital signature (doctor only)
 
@@ -668,7 +667,7 @@ async def sign_prescription(
 async def create_patient_visit(
     request: PatientVisitCreate,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Create patient visit assignment (doctor only)"""
 
@@ -717,7 +716,7 @@ async def list_patient_visits(
     date_from: datetime = None,
     date_to: datetime = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """List patient visits - nurses see only their visits, doctors see all"""
 
@@ -766,7 +765,7 @@ async def list_patient_visits(
 async def get_patient_visit(
     visit_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get patient visit details"""
 
@@ -824,7 +823,7 @@ async def update_visit_status(
     visit_id: str,
     status: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Update visit status (pending → in_progress → completed)"""
 
@@ -859,7 +858,7 @@ async def complete_patient_visit(
     visit_id: str,
     request: VisitCompleteRequest,
     current_user: User = Depends(get_nurse),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Mark visit as completed with notes and signature (nurse only)"""
 
@@ -921,7 +920,7 @@ async def complete_patient_visit(
 async def record_nurse_location(
     request: NurseLocationCreate,
     current_user: User = Depends(get_nurse),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Record nurse GPS location"""
 
@@ -947,7 +946,7 @@ async def record_nurse_location(
 async def get_nurse_locations(
     nurse_id: str = None,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get current nurse locations (doctor only)"""
 
@@ -974,7 +973,7 @@ async def upload_visit_photo(
     file: UploadFile = File(...),
     caption: str = None,
     current_user: User = Depends(get_nurse),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Upload photo for patient visit"""
 
@@ -1027,7 +1026,7 @@ async def upload_visit_photo(
 async def get_visit_photos(
     visit_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get photos for visit"""
 
@@ -1057,7 +1056,7 @@ async def get_visit_photos(
 async def create_device(
     request: DeviceCreate,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Create device in inventory (doctor/admin only)"""
 
@@ -1091,7 +1090,7 @@ async def create_device(
 async def list_devices(
     status: str = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """List devices in organization inventory"""
 
@@ -1110,7 +1109,7 @@ async def update_device_status(
     device_id: str,
     request: DeviceUpdateStatus,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Update device status"""
 
@@ -1154,7 +1153,7 @@ async def get_visit_analytics(
     date_from: datetime = None,
     date_to: datetime = None,
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get visit completion analytics"""
 
@@ -1204,7 +1203,7 @@ async def get_visit_analytics(
 @app.get("/api/analytics/devices", response_model=DeviceAnalytics)
 async def get_device_analytics(
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get device usage analytics"""
 
@@ -1229,7 +1228,7 @@ async def get_device_analytics(
 @app.get("/api/analytics/nurses", response_model=list[NurseAnalytics])
 async def get_nurse_analytics(
     current_user: User = Depends(get_doctor),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get nurse performance analytics"""
 
@@ -1361,7 +1360,7 @@ async def prepare_offline_data(
     date_from: datetime = None,
     date_to: datetime = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Prepare data package for offline use (download for mobile app)"""
 
@@ -1482,7 +1481,7 @@ async def prepare_offline_data(
 async def push_offline_changes(
     request: OfflineSyncPush,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Process queued offline changes from mobile app"""
 
@@ -1549,7 +1548,7 @@ async def push_offline_changes(
 @app.get("/api/offline-sync/status", response_model=OfflineSyncStatus)
 async def get_sync_status(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get current sync status"""
 
@@ -1588,7 +1587,7 @@ async def get_sync_status(
 async def get_sync_queue(
     status: str = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get pending offline sync queue"""
 
@@ -1609,7 +1608,7 @@ async def queue_offline_action(
     payload: dict,
     resource_id: str = None,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Manually queue an offline action"""
 
@@ -1636,7 +1635,7 @@ async def queue_offline_action(
 async def clear_queue_item(
     queue_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Clear specific queue item"""
 
@@ -1710,7 +1709,7 @@ async def generate_pdf(
     request: GeneratePDFRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Generate PDF prescription (authenticated users only)"""
 
@@ -1821,7 +1820,7 @@ Médecin: {current_user.full_name}
 async def create_patient(
     request: PatientCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Create a new patient"""
     try:
@@ -1870,7 +1869,7 @@ async def create_patient(
 async def get_patient(
     patient_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get patient by ID"""
     try:
@@ -1909,7 +1908,7 @@ async def get_patient(
 async def get_patient_prescriptions(
     patient_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Get all prescriptions for a patient"""
     try:
@@ -1990,7 +1989,7 @@ async def update_patient(
     patient_id: str,
     request: PatientUpdate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Update patient information"""
     try:
@@ -2053,7 +2052,7 @@ async def update_patient(
 async def delete_patient(
     patient_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Delete patient (soft delete via marking as archived)"""
     try:
@@ -2085,7 +2084,7 @@ async def transcribe_voice(
     file: UploadFile = File(...),
     language: str = "fr",
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Transcribe audio file to text using Whisper"""
     temp_audio_path = None
@@ -2125,7 +2124,7 @@ async def create_voice_prescription(
     patient_id: str = Form(...),
     file: UploadFile = File(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Create prescription from voice input with validation"""
     temp_audio_path = None
@@ -2251,7 +2250,7 @@ async def create_voice_prescription(
 async def create_text_prescription(
     request: TextPrescriptionRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """Create prescription from text input with validation"""
     try:
