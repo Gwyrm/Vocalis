@@ -28,13 +28,24 @@ class TokenData:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt"""
-    return pwd_context.hash(password)
+    """Hash a password using bcrypt (truncate to 72 bytes for bcrypt compatibility)"""
+    # Bcrypt has a 72-byte limit on password length
+    truncated = password[:72]
+    return pwd_context.hash(truncated)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its bcrypt hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify a password against its bcrypt hash (truncate to 72 bytes for bcrypt compatibility)"""
+    # Bcrypt has a 72-byte limit on password length
+    truncated = plain_password[:72]
+    try:
+        return pwd_context.verify(truncated, hashed_password)
+    except ValueError as e:
+        # Handle bcrypt errors gracefully
+        if "password cannot be longer than 72 bytes" in str(e):
+            logger.error(f"Password verification failed: bcrypt 72-byte limit exceeded")
+            return False
+        raise
 
 
 def create_access_token(user_id: str, org_id: str, email: str, role: str) -> str:

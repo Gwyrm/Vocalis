@@ -13,16 +13,11 @@ from models import (
     Organization, User, UserRole, Patient, Prescription, PatientVisit,
     Device, VisitDetail, NurseLocation, PhotoAttachment
 )
-import bcrypt
+from auth import hash_password  # Use passlib for consistent hashing
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("seed-demo-data")
-
-def hash_password_direct(password: str) -> str:
-    """Hash password using bcrypt directly"""
-    salt = bcrypt.gensalt(rounds=12)
-    return bcrypt.hashpw(password.encode(), salt).decode()
 
 def create_demo_data():
     """Create comprehensive demo data for presentations in demo.db"""
@@ -53,7 +48,7 @@ def create_demo_data():
             id=str(uuid.uuid4()),
             email="doctor@hopital-demo.fr",
             full_name="Dr. Marie Dubois",
-            password_hash=hash_password_direct("demo123"),
+            password_hash=hash_password("demo123"),
             role=UserRole.DOCTOR,
             org_id=org.id,
             is_active=True,
@@ -68,7 +63,7 @@ def create_demo_data():
             id=str(uuid.uuid4()),
             email="nurse@hopital-demo.fr",
             full_name="Infirmière Sophie Martin",
-            password_hash=hash_password_direct("demo123"),
+            password_hash=hash_password("demo123"),
             role=UserRole.NURSE,
             org_id=org.id,
             is_active=True,
