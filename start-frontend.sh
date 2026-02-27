@@ -8,7 +8,7 @@ echo ""
 cd frontend
 
 echo "[1/2] Getting dependencies..."
-flutter pub get -q
+flutter pub get
 
 echo "[2/2] Running application..."
 echo ""
