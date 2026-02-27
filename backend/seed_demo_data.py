@@ -8,7 +8,7 @@ Run this script to populate the database with sample data for presentations
 import uuid
 import json
 from datetime import datetime, timedelta
-from database import SessionLocal, engine, Base
+from database import DemoSessionLocal, demo_engine, Base
 from models import (
     Organization, User, UserRole, Patient, Prescription, PatientVisit,
     Device, VisitDetail, NurseLocation, PhotoAttachment
@@ -25,11 +25,11 @@ def hash_password_direct(password: str) -> str:
     return bcrypt.hashpw(password.encode(), salt).decode()
 
 def create_demo_data():
-    """Create comprehensive demo data for presentations"""
+    """Create comprehensive demo data for presentations in demo.db"""
 
-    # Create tables
-    Base.metadata.create_all(bind=engine)
-    db = SessionLocal()
+    # Create tables in demo database
+    Base.metadata.create_all(bind=demo_engine)
+    db = DemoSessionLocal()
 
     try:
         # 1. Create Demo Organization

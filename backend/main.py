@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 from haversine import haversine, Unit
 
 # Local imports
-from database import get_db, get_db_for_user, init_db, engine, Base, DEMO_ACCOUNT_EMAIL
+from database import get_db, get_db_for_user, init_db, prod_engine, Base, DEMO_ACCOUNT_EMAIL
 from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
@@ -81,9 +81,9 @@ async def lifespan(app: FastAPI):
     global ollama_available
 
     # Initialize database tables
-    logger.info("Initializing database...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database initialized")
+    logger.info("Initializing databases...")
+    init_db()
+    logger.info("Databases initialized")
 
     # Check Ollama availability
     logger.info(f"Checking Ollama at {OLLAMA_BASE_URL} with model {OLLAMA_MODEL}...")
@@ -148,6 +148,24 @@ def _extract_email_from_token(authorization: str) -> str:
         return token_data.email
     except Exception:
         return None
+
+
+async def get_db_for_request(authorization: str = Header(None)) -> Session:
+    """Get database session based on Authorization header email
+
+    Automatically routes to demo.db for demo account, vocalis.db for others
+    """
+    email = _extract_email_from_token(authorization)
+    if email and email.lower() == DEMO_ACCOUNT_EMAIL.lower():
+        db_generator = get_db_for_user(email)
+        db = next(db_generator)
+    else:
+        db = next(get_db())
+
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 async def get_current_user(
@@ -1936,7 +1954,7 @@ async def get_patient_prescriptions(
 @app.get("/api/patients", response_model=list[PatientResponse])
 async def list_patients(
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db_for_request)
 ):
     """List all patients for organization"""
     try:
