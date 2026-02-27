@@ -113,20 +113,10 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      // Read the audio file (on web, this will be empty)
+      // Read the audio file and send to backend for Whisper transcription
       final audioBytes = await _readAudioFile(_filePath!);
 
-      // On web with no audio, show a text input dialog for demo purposes
-      if (audioBytes.isEmpty && kIsWeb) {
-        if (!mounted) return;
-        setState(() => _isProcessing = false);
-
-        // Show a dialog to enter prescription text as a fallback
-        _showTextFallbackDialog();
-        return;
-      }
-
-      // Create prescription with voice
+      // Send audio to backend - Whisper will transcribe it automatically
       final result = await widget.apiService.createVoicePrescription(
         patientId: widget.patient.id,
         audioBytes: audioBytes,
@@ -170,73 +160,6 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
     final minutes = duration.inMinutes;
     final seconds = duration.inSeconds.remainder(60);
     return '$minutes:${seconds.toString().padLeft(2, '0')}';
-  }
-
-  void _showTextFallbackDialog() {
-    final textController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Entrer l\'ordonnance en texte'),
-        content: SingleChildScrollView(
-          child: TextField(
-            controller: textController,
-            maxLines: 5,
-            decoration: const InputDecoration(
-              hintText: 'Entrez ou décrivez votre ordonnance...',
-              border: OutlineInputBorder(),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              if (textController.text.isNotEmpty) {
-                _processTextPrescription(textController.text);
-              }
-            },
-            child: const Text('Valider'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _processTextPrescription(String prescriptionText) async {
-    setState(() => _isProcessing = true);
-
-    try {
-      final result = await widget.apiService.createTextPrescription(
-        patientId: widget.patient.id,
-        prescriptionText: prescriptionText,
-      );
-
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ValidationResultsScreen(
-              result: result,
-              patient: widget.patient,
-              apiService: widget.apiService,
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
   }
 
   @override
