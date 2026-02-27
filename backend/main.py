@@ -3,7 +3,7 @@ Vocalis Backend - Healthcare Device Delivery Platform
 Multi-user system with authentication, prescriptions, and LLM-powered assistance
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
@@ -2173,7 +2173,7 @@ async def transcribe_voice(
 
 @app.post("/api/prescriptions/voice", response_model=PrescriptionValidationResponse)
 async def create_voice_prescription(
-    request: VoicePrescriptionRequest,
+    patient_id: str = Form(...),
     file: UploadFile = File(None),
     current_user: User = Depends(get_current_user_demo),
     db: Session = Depends(get_db)
@@ -2183,7 +2183,7 @@ async def create_voice_prescription(
     try:
         # Get patient data
         patient = db.query(Patient).filter(
-            Patient.id == request.patient_id,
+            Patient.id == patient_id,
             Patient.org_id == current_user.org_id
         ).first()
 
