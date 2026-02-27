@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:signature/signature.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
+import 'dart:ui' as ui;
 import '../api_service.dart';
 import '../models/patient.dart';
 import '../models/prescription.dart';
@@ -78,8 +82,13 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
   }
 
   void _showSignPrescriptionDialog(Prescription prescription) {
-    final notesController = TextEditingController();
     bool isLoading = false;
+    bool useLastSignature = false;
+    final signatureController = SignatureController(
+      penStrokeWidth: 2,
+      penColor: Colors.black,
+      exportBackgroundColor: Colors.white,
+    );
 
     showDialog(
       context: context,
@@ -113,20 +122,39 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                 ],
                 const SizedBox(height: 16),
                 const Text(
-                  'Notes du docteur (optionnel):',
+                  'Signature du docteur:',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: notesController,
-                  maxLines: 3,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    hintText: 'Entrez vos notes (optionnel)',
-                    enabled: !isLoading,
+                // Signature Pad
+                Container(
+                  width: double.infinity,
+                  height: 150,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: Signature(
+                    controller: signatureController,
+                    backgroundColor: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Clear Signature Button
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => signatureController.clear(),
+                    child: const Text('Effacer'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Use Last Signature Option
+                CheckboxListTile(
+                  value: useLastSignature,
+                  onChanged: (val) => setState(() => useLastSignature = val ?? false),
+                  title: const Text('Utiliser la dernière signature'),
+                  contentPadding: EdgeInsets.zero,
                 ),
               ],
             ),
@@ -142,23 +170,43 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                   : () async {
                       setState(() => isLoading = true);
                       try {
+                        // Get signature data
+                        String? signatureBase64;
+                        if (useLastSignature) {
+                          // Load last signature from SharedPreferences
+                          final prefs = await SharedPreferences.getInstance();
+                          signatureBase64 = prefs.getString('last_doctor_signature');
+                        } else if (!signatureController.isEmpty) {
+                          // Get new signature
+                          final ui.Image image = await signatureController.toImage();
+                          final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+                          final bytes = byteData!.buffer.asUint8List();
+                          signatureBase64 = base64Encode(bytes);
+
+                          // Save for next time
+                          final prefs = await SharedPreferences.getInstance();
+                          await prefs.setString('last_doctor_signature', signatureBase64);
+                        }
+
+                        if (signatureBase64 == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Veuillez dessiner une signature')),
+                          );
+                          setState(() => isLoading = false);
+                          return;
+                        }
+
                         await widget.apiService.signPrescription(
                           prescription.id,
-                          notesController.text.isEmpty
-                              ? null
-                              : notesController.text,
+                          signatureBase64,
                         );
 
                         if (mounted) {
-                          if (mounted) {
-                            Navigator.pop(dialogContext);
-                          }
+                          Navigator.pop(dialogContext);
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: const Text(
-                                  'Ordonnance signée avec succès',
-                                ),
+                                content: const Text('Ordonnance signée avec succès'),
                                 backgroundColor: Colors.green.shade600,
                               ),
                             );
@@ -185,9 +233,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white,
-                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
                   : const Text('Signer'),

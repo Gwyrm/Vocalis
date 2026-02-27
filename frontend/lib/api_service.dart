@@ -437,13 +437,13 @@ class ApiService {
 
   Future<Prescription> signPrescription(
     String prescriptionId,
-    String? doctorNotes,
+    String signatureBase64,
   ) async {
     final response = await http.put(
       Uri.parse('$baseUrl/api/prescriptions/$prescriptionId/sign'),
       headers: _authHeaders,
       body: jsonEncode({
-        'doctor_notes': doctorNotes,
+        'doctor_signature': signatureBase64,
       }),
     );
 
