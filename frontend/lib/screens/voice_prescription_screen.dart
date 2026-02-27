@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:io';
 import '../api_service.dart';
@@ -48,6 +47,7 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
     try {
       // Check for permission
       if (!(await _recorder.hasPermission())) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Permission de microphone refusée')),
         );
@@ -67,11 +67,14 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       });
 
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-        setState(() {
-          _recordingDuration += const Duration(seconds: 1);
-        });
+        if (mounted) {
+          setState(() {
+            _recordingDuration += const Duration(seconds: 1);
+          });
+        }
       });
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $e')),
       );
@@ -82,12 +85,14 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
     try {
       _timer?.cancel();
       _filePath = await _recorder.stop();
+      if (!mounted) return;
       setState(() => _isRecording = false);
 
       if (_filePath != null) {
         _processRecording();
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erreur: $e')),
       );

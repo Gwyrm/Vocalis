@@ -1,8 +1,6 @@
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart'; // For kIsWeb
-import 'models/prescription_data.dart';
 import 'models/patient.dart';
 import 'models/prescription.dart';
 

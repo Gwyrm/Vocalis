@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 class PrescriptionData {
   String? patientName;
   String? patientAge;
