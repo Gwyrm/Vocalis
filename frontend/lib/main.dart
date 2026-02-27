@@ -4,7 +4,6 @@ import 'api_service.dart';
 import 'providers/auth_provider.dart';
 import 'screens/patient_list_screen.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -29,40 +28,19 @@ class MyApp extends StatelessWidget {
           },
         ),
       ],
-      child: Builder(
-        builder: (context) {
-          // Set up auth error callback on ApiService
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final apiService = context.read<ApiService>();
-            final authProvider = context.read<AuthProvider>();
-            apiService.setOnAuthError(() async {
-              // Logout and show error when auth fails
-              await authProvider.logout();
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Votre session a expiré. Veuillez vous reconnecter.'),
-                  ),
-                );
-              }
-            });
-          });
-
-          return MaterialApp(
-            title: 'Vocalis AI',
-            debugShowCheckedModeBanner: false,
-            theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-              useMaterial3: true,
-              inputDecorationTheme: InputDecorationTheme(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                filled: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-            ),
-            home: const _AppRouter(),
-          );
-        },
+      child: MaterialApp(
+        title: 'Vocalis AI',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+          inputDecorationTheme: InputDecorationTheme(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            filled: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+        home: const _AppRouter(),
       ),
     );
   }
