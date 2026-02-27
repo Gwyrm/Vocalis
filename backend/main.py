@@ -23,12 +23,13 @@ from database import get_db, get_db_for_user, init_db, prod_engine, Base, DEMO_A
 from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
-    Patient, Medication, MedicationInteraction, DrugAllergy
+    Patient, Medication, MedicationInteraction, DrugAllergy, PrescriptionDevice
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
     UserProfileUpdate, ChangePasswordRequest, PasswordChangeResponse,
     PrescriptionCreate, PrescriptionUpdate, PrescriptionSignRequest, PrescriptionResponse, PrescriptionListResponse,
+    PrescriptionDeviceCreate, PrescriptionDeviceResponse, DeviceResponse,
     PatientVisitCreate, PatientVisitUpdate, PatientVisitListResponse, PatientVisitDetailResponse,
     VisitCompleteRequest,
     NurseLocationCreate, NurseLocationResponse, PhotoResponse,
@@ -657,6 +658,141 @@ async def sign_prescription(
         is_signed=prescription.is_signed,
         doctor_signed_at=prescription.doctor_signed_at
     )
+
+
+# ============================================================================
+# DEVICE MANAGEMENT ENDPOINTS - Link devices to prescriptions
+# ============================================================================
+
+@app.post("/api/prescriptions/{prescription_id}/devices", response_model=PrescriptionDeviceResponse)
+async def add_device_to_prescription(
+    prescription_id: str,
+    device_req: PrescriptionDeviceCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_for_request)
+):
+    """Add device to prescription (doctor only)"""
+    if current_user.role != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can assign devices to prescriptions")
+
+    # Verify prescription exists and belongs to user's org
+    prescription = db.query(Prescription).filter(
+        Prescription.id == prescription_id,
+        Prescription.org_id == current_user.org_id
+    ).first()
+
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Verify device exists and belongs to org
+    device = db.query(Device).filter(
+        Device.id == device_req.device_id,
+        Device.org_id == current_user.org_id
+    ).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    # Check if device already assigned
+    existing = db.query(PrescriptionDevice).filter(
+        PrescriptionDevice.prescription_id == prescription_id,
+        PrescriptionDevice.device_id == device_req.device_id
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Device already assigned to this prescription")
+
+    # Create assignment
+    assignment = PrescriptionDevice(
+        prescription_id=prescription_id,
+        device_id=device_req.device_id,
+        quantity=device_req.quantity,
+        instructions=device_req.instructions,
+        priority=device_req.priority
+    )
+
+    db.add(assignment)
+    db.commit()
+    db.refresh(assignment)
+
+    logger.info(f"Device {device.id} assigned to prescription {prescription_id}")
+
+    return PrescriptionDeviceResponse(
+        id=assignment.id,
+        device_id=assignment.device_id,
+        quantity=assignment.quantity,
+        instructions=assignment.instructions,
+        priority=assignment.priority
+    )
+
+
+@app.get("/api/prescriptions/{prescription_id}/devices", response_model=list[PrescriptionDeviceResponse])
+async def get_prescription_devices(
+    prescription_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_for_request)
+):
+    """Get devices assigned to prescription"""
+    # Verify prescription exists
+    prescription = db.query(Prescription).filter(
+        Prescription.id == prescription_id,
+        Prescription.org_id == current_user.org_id
+    ).first()
+
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    devices = db.query(PrescriptionDevice).filter(
+        PrescriptionDevice.prescription_id == prescription_id
+    ).all()
+
+    return [
+        PrescriptionDeviceResponse(
+            id=d.id,
+            device_id=d.device_id,
+            quantity=d.quantity,
+            instructions=d.instructions,
+            priority=d.priority
+        )
+        for d in devices
+    ]
+
+
+@app.delete("/api/prescriptions/{prescription_id}/devices/{device_id}")
+async def remove_device_from_prescription(
+    prescription_id: str,
+    device_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_for_request)
+):
+    """Remove device from prescription"""
+    if current_user.role != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can modify prescription devices")
+
+    # Verify prescription exists
+    prescription = db.query(Prescription).filter(
+        Prescription.id == prescription_id,
+        Prescription.org_id == current_user.org_id
+    ).first()
+
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Find and delete assignment
+    assignment = db.query(PrescriptionDevice).filter(
+        PrescriptionDevice.prescription_id == prescription_id,
+        PrescriptionDevice.device_id == device_id
+    ).first()
+
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Device not assigned to this prescription")
+
+    db.delete(assignment)
+    db.commit()
+
+    logger.info(f"Device {device_id} removed from prescription {prescription_id}")
+
+    return {"message": "Device removed from prescription"}
 
 
 # ============================================================================

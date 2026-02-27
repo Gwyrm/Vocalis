@@ -118,6 +118,39 @@ class PrescriptionResponse(BaseModel):
         from_attributes = True
 
 
+class DeviceResponse(BaseModel):
+    """Device response"""
+    id: str
+    name: str
+    model: Optional[str]
+    serial_number: Optional[str]
+    description: Optional[str]
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class PrescriptionDeviceCreate(BaseModel):
+    """Add device to prescription"""
+    device_id: str
+    quantity: int = 1
+    instructions: Optional[str] = None
+    priority: str = "normal"
+
+
+class PrescriptionDeviceResponse(BaseModel):
+    """Device in prescription"""
+    id: str
+    device_id: str
+    quantity: int
+    instructions: Optional[str]
+    priority: str
+
+    class Config:
+        from_attributes = True
+
+
 class PrescriptionListResponse(BaseModel):
     """Prescription list response"""
     id: str

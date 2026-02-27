@@ -90,6 +90,25 @@ class Prescription(Base):
     created_by_user = relationship("User", back_populates="prescriptions")
     patient = relationship("Patient", back_populates="prescriptions")
     patient_visits = relationship("PatientVisit", back_populates="prescription")
+    devices = relationship("PrescriptionDevice", back_populates="prescription", cascade="all, delete-orphan")
+
+
+class PrescriptionDevice(Base):
+    """Link between prescriptions and devices to be delivered"""
+    __tablename__ = "prescription_devices"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    prescription_id = Column(String(36), ForeignKey("prescriptions.id"), nullable=False)
+    device_id = Column(String(36), ForeignKey("devices.id"), nullable=False)
+
+    quantity = Column(Integer, default=1)
+    instructions = Column(Text, nullable=True)  # Device-specific instructions
+    priority = Column(String(50), default="normal")  # normal, high, urgent
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    prescription = relationship("Prescription", back_populates="devices")
+    device = relationship("Device", back_populates="prescriptions")
 
 
 class Device(Base):
@@ -102,13 +121,15 @@ class Device(Base):
     name = Column(String(255), nullable=False)
     model = Column(String(255))
     serial_number = Column(String(255), unique=True)
+    description = Column(Text, nullable=True)  # Device description/instructions
 
-    status = Column(String(50), default="available")  # available, assigned, in_use, maintenance
+    status = Column(String(50), default="available")  # available, assigned, in_use, maintenance, returned
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
     organization = relationship("Organization", back_populates="devices")
     visit_details = relationship("VisitDetail", back_populates="device")
+    prescriptions = relationship("PrescriptionDevice", back_populates="device", cascade="all, delete-orphan")
 
 
 class PatientVisit(Base):
@@ -140,6 +161,12 @@ class VisitDetail(Base):
     visit_id = Column(String(36), ForeignKey("patient_visits.id"), nullable=False)
     device_id = Column(String(36), ForeignKey("devices.id"))
 
+    # Device installation tracking
+    device_serial_installed = Column(String(255), nullable=True)  # Actual serial of device installed
+    installation_confirmed = Column(Boolean, default=False)  # Nurse confirmed installation
+    installation_timestamp = Column(DateTime, nullable=True)
+
+    # Visit completion details
     nurse_notes = Column(Text)
     patient_signature = Column(Text)  # Base64 encoded signature
     photos = Column(Text)  # JSON array of photo file paths
