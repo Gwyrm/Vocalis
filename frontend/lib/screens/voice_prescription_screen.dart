@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 import 'dart:io';
 import '../api_service.dart';
 import '../models/patient.dart';
 import 'validation_results_screen.dart';
+
+// Conditional import for path_provider (mobile only)
+import 'package:path_provider/path_provider.dart'
+  if (dart.library.html) '../stub_path_provider.dart';
 
 class VoicePrescriptionScreen extends StatefulWidget {
   final Patient patient;

@@ -1,13 +1,17 @@
 import 'dart:convert';
+import 'dart:io' show File;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:open_file/open_file.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:signature/signature.dart';
 import 'package:universal_html/html.dart' as html;
 import 'api_service.dart';
 import 'models/prescription_data.dart';
+
+// Conditional import for path_provider (mobile only)
+import 'package:path_provider/path_provider.dart'
+  if (dart.library.html) 'stub_path_provider.dart';
 
 enum PrescriptionStage {
   informationCollection,
