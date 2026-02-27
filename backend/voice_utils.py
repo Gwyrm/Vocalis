@@ -89,24 +89,30 @@ def validate_medication(
         })
 
     # Check dosage format
-    if not any(char.isdigit() for char in dosage):
+    if dosage is None or not dosage:
+        errors.append({
+            "type": "invalid_value",
+            "message": "Dosage is required and must contain a numeric value",
+            "field": "dosage"
+        })
+    elif not any(char.isdigit() for char in dosage):
         errors.append({
             "type": "invalid_value",
             "message": "Dosage must contain a numeric value",
             "field": "dosage"
         })
-
-    # Check for suspicious dosage values (e.g., "00mg", "0mg")
-    import re
-    dosage_num = re.search(r'(\d+)', dosage)
-    if dosage_num:
-        num_value = int(dosage_num.group(1))
-        if num_value == 0:
-            errors.append({
-                "type": "invalid_value",
-                "message": f"Dosage value cannot be zero: {dosage}",
-                "field": "dosage"
-            })
+    else:
+        # Check for suspicious dosage values (e.g., "00mg", "0mg")
+        import re
+        dosage_num = re.search(r'(\d+)', dosage)
+        if dosage_num:
+            num_value = int(dosage_num.group(1))
+            if num_value == 0:
+                errors.append({
+                    "type": "invalid_value",
+                    "message": f"Dosage value cannot be zero: {dosage}",
+                    "field": "dosage"
+                })
 
     # Check for common interactions (simplified)
     interaction_pairs = [
