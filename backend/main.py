@@ -1939,7 +1939,9 @@ async def get_patient_prescriptions(
                 special_instructions=p.special_instructions,
                 status=p.status,
                 created_by=p.created_by_user.email if p.created_by_user else "Unknown",
-                created_at=p.created_at
+                created_at=p.created_at,
+                is_signed=p.is_signed or False,
+                doctor_signed_at=p.doctor_signed_at
             )
             for p in prescriptions
         ]
