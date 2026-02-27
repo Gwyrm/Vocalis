@@ -14,8 +14,13 @@ JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
 
-# Password hashing - use bcrypt for secure password storage
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing - use argon2 for secure password storage (more reliable than bcrypt)
+# Falls back to pbkdf2 if argon2 unavailable
+try:
+    pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+except Exception:
+    # Fallback to pbkdf2 if argon2 not available
+    pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 class TokenData:
@@ -28,24 +33,17 @@ class TokenData:
 
 
 def hash_password(password: str) -> str:
-    """Hash a password using bcrypt (truncate to 72 bytes for bcrypt compatibility)"""
-    # Bcrypt has a 72-byte limit on password length
-    truncated = password[:72]
-    return pwd_context.hash(truncated)
+    """Hash a password using argon2 or pbkdf2"""
+    return pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify a password against its bcrypt hash (truncate to 72 bytes for bcrypt compatibility)"""
-    # Bcrypt has a 72-byte limit on password length
-    truncated = plain_password[:72]
+    """Verify a password against its hash"""
     try:
-        return pwd_context.verify(truncated, hashed_password)
-    except ValueError as e:
-        # Handle bcrypt errors gracefully
-        if "password cannot be longer than 72 bytes" in str(e):
-            logger.error(f"Password verification failed: bcrypt 72-byte limit exceeded")
-            return False
-        raise
+        return pwd_context.verify(plain_password, hashed_password)
+    except Exception as e:
+        logger.warning(f"Password verification failed: {e}")
+        return False
 
 
 def create_access_token(user_id: str, org_id: str, email: str, role: str) -> str:

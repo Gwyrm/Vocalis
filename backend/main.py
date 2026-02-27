@@ -266,7 +266,16 @@ async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
     # Create token
     token = create_access_token(user.id, user.org_id, user.email, user.role.value)
 
-    return TokenResponse(access_token=token)
+    return TokenResponse(
+        access_token=token,
+        user={
+            "id": user.id,
+            "email": user.email,
+            "role": user.role.value,
+            "org_id": user.org_id,
+            "full_name": user.full_name
+        }
+    )
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
