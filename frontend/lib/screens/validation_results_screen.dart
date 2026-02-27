@@ -523,8 +523,12 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Retour'),
+                onPressed: () {
+                  // Pop twice: validation screen, then text/voice prescription screen
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pop();
+                },
+                child: const Text('Retour au patient'),
               ),
             ),
           ],
