@@ -181,25 +181,4 @@ class AuthService {
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
   }
-
-  /// Demo login (if backend demo mode is enabled)
-  Future<AuthResponse> loginDemo() async {
-    final url = Uri.parse('$baseUrl/api/auth/demo');
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-      );
-
-      if (response.statusCode == 200) {
-        final authResponse = AuthResponse.fromJson(jsonDecode(response.body));
-        await _saveAuthData(authResponse);
-        return authResponse;
-      } else {
-        throw Exception('Mode démo non disponible');
-      }
-    } catch (e) {
-      throw Exception('Erreur mode démo: $e');
-    }
-  }
 }

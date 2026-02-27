@@ -148,18 +148,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         : const Text('Se connecter'),
                   ),
                 ),
-                const SizedBox(height: 16),
-
-                // Demo login button
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed:
-                        authProvider.isLoading ? null : _handleDemoLogin,
-                    icon: const Icon(Icons.fast_forward),
-                    label: const Text('Mode démo'),
-                  ),
-                ),
                 const SizedBox(height: 40),
 
                 // Footer
@@ -198,15 +186,6 @@ class _LoginScreenState extends State<LoginScreen> {
       // Clear error on successful login
       authProvider.clearError();
       // Navigation happens in main.dart based on auth state
-    }
-  }
-
-  Future<void> _handleDemoLogin() async {
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.loginDemo();
-
-    if (success && mounted) {
-      authProvider.clearError();
     }
   }
 }

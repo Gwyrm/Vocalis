@@ -56,28 +56,6 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Demo login
-  Future<bool> loginDemo() async {
-    _isLoading = true;
-    _error = null;
-    notifyListeners();
-
-    try {
-      final authResponse = await _authService.loginDemo();
-      _token = authResponse.accessToken;
-      _currentUser = authResponse.user;
-      _isLoading = false;
-      _error = null;
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _isLoading = false;
-      _error = e.toString().replaceAll('Exception: ', '');
-      notifyListeners();
-      return false;
-    }
-  }
-
   /// Logout
   Future<void> logout() async {
     await _authService.logout();
