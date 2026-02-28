@@ -82,6 +82,12 @@
   - [x] Add Edit button visible only for draft prescriptions
   - [x] Implement draft/signed status logic
 
+- [x] **Edit Extracted Data Before Validation**
+  - [x] Create EditExtractedPrescriptionScreen for LLM-extracted data
+  - [x] Allow editing immediately after prescription creation
+  - [x] Fix LLM extraction errors before validation
+  - [x] Integrated into text and voice prescription flows
+
 - [ ] **Profile Management**
   - [ ] Add profile update endpoint (PUT /api/users/profile)
   - [ ] Add password change endpoint (POST /api/users/change-password)
