@@ -38,6 +38,7 @@ nav:
   - Features:
     - Text Prescriptions: features/text-prescriptions.md
     - Voice Prescriptions: features/voice-prescriptions.md
+    - Prescription Lifecycle & Editing: features/prescription-lifecycle.md
     - Prescription History: features/history.md
     - User Roles: features/user-roles.md
   - Testing:

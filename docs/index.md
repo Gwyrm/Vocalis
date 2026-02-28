@@ -7,6 +7,8 @@ Welcome to the Vocalis documentation. Vocalis is a modern medical AI assistant p
 - **🗣️ Voice Input**: Transcribe prescription dictation using Whisper AI
 - **📝 Text Input**: Create prescriptions via natural language text
 - **🤖 AI Processing**: LLM-powered prescription extraction and validation
+- **✏️ Draft Editing**: Edit prescriptions before finalizing (draft-only protection)
+- **✓ Signing Workflow**: Doctors confirm prescriptions with status tracking
 - **👥 Multi-User**: Support for doctors and nurses with role-based access
 - **📱 Cross-Platform**: Flutter frontend for web, iOS, Android, and desktop
 - **🔐 Security**: JWT authentication with bcrypt password hashing
@@ -34,6 +36,7 @@ Welcome to the Vocalis documentation. Vocalis is a modern medical AI assistant p
 ### Features
 - [Text Prescriptions](features/text-prescriptions.md) - Natural language input
 - [Voice Prescriptions](features/voice-prescriptions.md) - Audio transcription
+- [Prescription Lifecycle & Editing](features/prescription-lifecycle.md) - Draft editing and signing workflow
 - [Prescription History](features/history.md) - Patient tracking
 - [User Roles](features/user-roles.md) - Permissions and access control
 

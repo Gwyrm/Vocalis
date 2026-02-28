@@ -297,6 +297,69 @@ flutter run -d <device-name>
    git pull origin main
    ```
 
+### ❌ "Cannot edit prescription - 403 Forbidden"
+
+**Error:**
+```json
+{"detail": "Only draft prescriptions can be edited"}
+```
+
+**Meaning:**
+- You're trying to edit a **signed** prescription
+- Signed prescriptions are locked and read-only
+
+**Solution:**
+1. Check prescription status (see status badge in UI)
+2. If status is **"✓ Signée"** (Signed):
+   - Cannot edit this prescription
+   - Create a new prescription instead
+3. If status is **"⏳ À signer"** (Draft):
+   - Should be editable
+   - Try refreshing page
+   - Check you're logged in as correct user
+
+### ❌ "Edit button not showing for draft prescription"
+
+**Error:**
+- Draft prescription exists but no Edit button visible
+
+**Solution:**
+1. Refresh page (F5)
+2. Check status badge:
+   - Orange badge = Draft → Edit button should show
+   - Green badge = Signed → Edit button hidden (correct)
+3. Check user role:
+   - Must be doctor or nurse to edit
+   - Different user may see read-only view
+4. Clear browser cache
+5. Check network tab (F12) for errors
+
+### ❌ "Edited prescription didn't save"
+
+**Error:**
+- Click "Enregistrer", button shows spinner, but changes don't persist
+- No success message shown
+
+**Solution:**
+1. Check backend is running:
+   ```bash
+   curl http://localhost:8080/api/health
+   ```
+
+2. Check network (F12 → Network tab):
+   - Look for failed PUT request
+   - Check response status code
+
+3. If 422 error:
+   - Check required fields are not empty
+   - Medication, dosage, duration are required
+
+4. If 404 error:
+   - Prescription may have been deleted
+   - Refresh and check prescription still exists
+
+5. Try editing again with simpler changes
+
 ## Network Issues
 
 ### ❌ "Cannot reach API"
