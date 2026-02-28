@@ -16,6 +16,7 @@ import uuid
 import uvicorn
 import json
 from datetime import datetime, timedelta
+from typing import Optional, List
 from haversine import haversine, Unit
 
 # Local imports
@@ -2585,7 +2586,7 @@ async def create_text_prescription(
 @app.post("/api/interventions", response_model=InterventionResponse)
 async def create_intervention(
     data: InterventionCreate,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Create a new intervention (doctor only)"""
@@ -2606,7 +2607,7 @@ async def create_intervention(
         id=str(uuid.uuid4()),
         org_id=current_user.org_id,
         prescription_id=data.prescription_id,
-        created_by=current_user.user_id,
+        created_by=current_user.id,
         intervention_type=sanitize_input(data.intervention_type),
         description=sanitize_input(data.description) if data.description else None,
         scheduled_date=data.scheduled_date,
@@ -2635,7 +2636,7 @@ async def create_intervention(
 async def list_interventions(
     prescription_id: Optional[str] = None,
     status: Optional[str] = None,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """List interventions (filtered by prescription_id if provided)"""
@@ -2666,7 +2667,7 @@ async def list_interventions(
 @app.get("/api/interventions/{intervention_id}", response_model=InterventionDetailResponse)
 async def get_intervention(
     intervention_id: str,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get intervention details with logs"""
@@ -2711,7 +2712,7 @@ async def get_intervention(
 async def update_intervention(
     intervention_id: str,
     data: InterventionUpdate,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Update intervention (doctor only, only if scheduled)"""
@@ -2760,7 +2761,7 @@ async def update_intervention(
 @app.delete("/api/interventions/{intervention_id}")
 async def delete_intervention(
     intervention_id: str,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Delete intervention (doctor only, only if scheduled)"""
@@ -2788,7 +2789,7 @@ async def delete_intervention(
 async def log_intervention(
     intervention_id: str,
     data: InterventionLogCreate,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Log intervention completion/status change (doctor or nurse)"""
@@ -2804,7 +2805,7 @@ async def log_intervention(
     log = InterventionLog(
         id=str(uuid.uuid4()),
         intervention_id=intervention_id,
-        logged_by=current_user.user_id,
+        logged_by=current_user.id,
         status_change=sanitize_input(data.status_change),
         notes=sanitize_input(data.notes) if data.notes else None
     )
@@ -2837,7 +2838,7 @@ async def upload_intervention_document(
     document_type: str = Form("note"),
     caption: Optional[str] = Form(None),
     log_id: Optional[str] = Form(None),
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload document to intervention log"""
@@ -2914,7 +2915,7 @@ async def upload_intervention_document(
 @app.get("/api/interventions/{intervention_id}/logs")
 async def get_intervention_logs(
     intervention_id: str,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all logs for an intervention"""
@@ -2946,7 +2947,7 @@ async def get_intervention_logs(
 @app.get("/api/interventions/{intervention_id}/documents")
 async def get_intervention_documents(
     intervention_id: str,
-    current_user: TokenData = Depends(verify_token),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all documents for an intervention"""
