@@ -106,7 +106,9 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Ordonnance signée et enregistrée')),
         );
-        // Navigate back to patient page
+        // Navigate back to patient detail page
+        // Pop 3 times: ValidationResultsScreen -> EditExtractedPrescriptionScreen -> TextPrescriptionScreen -> PatientDetailScreen
+        Navigator.of(context).pop();
         Navigator.of(context).pop();
         Navigator.of(context).pop();
       }
@@ -561,7 +563,8 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
                     onPressed: _isSigning
                         ? null
                         : () {
-                            // Pop twice: validation screen, then text/voice prescription screen
+                            // Pop 3 times: back to patient detail screen
+                            Navigator.of(context).pop();
                             Navigator.of(context).pop();
                             Navigator.of(context).pop();
                           },
