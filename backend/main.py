@@ -77,40 +77,52 @@ session_lock = asyncio.Lock()
 # ============================================================================
 
 def normalize_item(item: str) -> str:
-    """Normalize allergy/condition/medication string for comparison"""
+    """
+    Normalize allergy/condition/medication string.
+    Removes prefixes like "allergie aux", "allergie à", etc.
+    Returns only the allergen/condition/medication name.
+    """
     import re
     if not item:
         return ""
-    # Remove common prefixes
-    normalized = item.lower().strip()
+
+    normalized = item.strip()
+
     # Remove "allergie aux", "allergie à", "allergie à la", etc.
-    normalized = re.sub(r'^allergie\s+(aux?|à\s+la?)\s+', '', normalized)
-    # Remove extra whitespace
-    normalized = re.sub(r'\s+', ' ', normalized)
+    normalized = re.sub(r'^allergie\s+(aux?|à\s+la?)\s+', '', normalized, flags=re.IGNORECASE)
+
+    # Remove "condition", "condition chronique", etc. prefixes
+    normalized = re.sub(r'^condition\s+(chronique\s+)?', '', normalized, flags=re.IGNORECASE)
+
+    # Remove extra whitespace and normalize case
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+
+    # Capitalize first letter for consistency
+    if normalized:
+        normalized = normalized[0].upper() + normalized[1:].lower()
+
     return normalized
 
 
 def deduplicate_items(items: list) -> list:
     """
     Remove duplicates from a list of items (allergies, conditions, medications).
-    Handles cases like "allergie aux orthies" vs "orthies".
-    Keeps the longest (most descriptive) version.
+    Normalizes items by removing prefixes (e.g., "allergie aux orthies" -> "Orthies").
+    Returns deduplicated list with normalized names only.
     """
     if not items:
         return []
 
-    # Map normalized -> original items
-    normalized_map = {}
+    # Map normalized -> normalized items (only unique normalized values)
+    seen = {}
     for item in items:
         if not item or not item.strip():
             continue
         norm = normalize_item(item)
-        if norm:
-            # Keep the longest version
-            if norm not in normalized_map or len(item) > len(normalized_map[norm]):
-                normalized_map[norm] = item
+        if norm and norm not in seen:
+            seen[norm] = norm
 
-    return list(normalized_map.values())
+    return list(seen.values())
 
 
 # ============================================================================
