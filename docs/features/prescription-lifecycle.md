@@ -75,15 +75,41 @@ Before signing, prescription is in `draft` status and **fully editable**.
 
 ## 4. Signing Phase
 
-Once prescription is ready, doctor finalizes it by signing.
+Once prescription is ready, the signing process depends on the user's role.
 
-### Sign Process:
-1. Click **"Signer"** button on draft prescription
-2. Confirm on validation results screen
-3. Click **"Valider et enregistrer"** button
-4. Backend marks prescription as signed
-5. Success message: "Ordonnance signée et enregistrée"
-6. Status changes to **"signed"**
+### Doctor: Two Signing Options
+
+On the validation results screen, doctors see **three buttons** with two signing methods:
+
+**Option 1: Direct Sign (Quick)**
+- Click **"Signer"** button
+- Signs prescription immediately
+- Returns to patient record
+- Use when you're confident in the prescription
+
+**Option 2: Sign + Validate (Safe)**
+- Click **"Valider"** button
+- Signs and saves the prescription
+- Shows full validation workflow
+- Use when you want to review everything one more time
+
+### Nurse: Single Signing Option
+
+Nurses see **two buttons** on the validation results screen:
+
+- Click **"Valider et enregistrer"** button
+- Creates and saves the prescription
+- Returns to patient record
+- **Note:** Nurses cannot sign prescriptions - only doctors can
+
+### Sign Process (Doctor):
+1. Review extracted data and patient info on validation screen
+2. Choose your signing method:
+   - **"Signer"** for direct sign (returns immediately)
+   - **"Valider"** for sign + validation (shows complete workflow)
+3. Backend marks prescription as signed
+4. Success message shown
+5. Status changes to **"signed"**
 
 ### What Happens After Signing:
 - ✅ Prescription is **locked** (read-only)
@@ -103,7 +129,49 @@ Prescription dispensed to patient:
 
 ## UI & User Experience
 
-### Draft Prescription View
+### Validation Results Screen - Doctor
+
+```
+┌────────────────────────────────┐
+│ Ordonnance valide ✓            │
+├────────────────────────────────┤
+│ Médicament: Amoxicilline       │
+│ Posologie: 500mg, 3x daily     │
+│ Durée: 10 jours                │
+│ Diagnostic: Bronchite          │
+├────────────────────────────────┤
+│ Patient Info (editable)        │
+│ • Allergies: Pénicilline       │
+│ • Conditions: Asthme           │
+├────────────────────────────────┤
+│ [Retour] [Signer] [Valider]    │ ← Doctor buttons
+│                                │
+│ Signer: Signer uniquement       │
+│ Valider: Signer et enregistrer  │
+└────────────────────────────────┘
+```
+
+### Validation Results Screen - Nurse
+
+```
+┌────────────────────────────────┐
+│ Ordonnance valide ✓            │
+├────────────────────────────────┤
+│ Médicament: Amoxicilline       │
+│ Posologie: 500mg, 3x daily     │
+│ Durée: 10 jours                │
+│ Diagnostic: Bronchite          │
+├────────────────────────────────┤
+│ Patient Info (editable)        │
+│ • Allergies: Pénicilline       │
+│ • Conditions: Asthme           │
+├────────────────────────────────┤
+│ [Retour] [Valider et          │
+│          enregistrer]           │ ← Nurse buttons
+└────────────────────────────────┘
+```
+
+### Draft Prescription View (Patient Record)
 ```
 ┌─────────────────────────┐
 │ Amoxicilline 500mg      │
@@ -116,7 +184,7 @@ Prescription dispensed to patient:
 └─────────────────────────┘
 ```
 
-### Signed Prescription View
+### Signed Prescription View (Patient Record)
 ```
 ┌─────────────────────────┐
 │ Amoxicilline 500mg      │
@@ -179,20 +247,61 @@ Prescription dispensed to patient:
     → Prescription locked
 ```
 
-### Workflow 2: Create, Immediately Sign (No Edit)
+### Workflow 2: Doctor Quick Sign (New!)
 
 ```
 1. Doctor creates prescription from text/voice
    ↓
-2. Reviews validation results
+2. Enters prescription details
    ↓
-3. Clicks "Valider et enregistrer" directly
-   → Prescription created and signed in one action
+3. Reviews extracted data on validation screen
+   ↓
+4. Clicks "Signer" button
+   → Prescription signed immediately
+   → Returns to patient record
    → Status: SIGNED
    → Read-only
 ```
 
-### Workflow 3: Attempt to Edit Signed Prescription
+### Workflow 3: Doctor Sign + Validate (New!)
+
+```
+1. Doctor creates prescription from text/voice
+   ↓
+2. Enters prescription details
+   ↓
+3. Reviews extracted data on validation screen
+   ↓
+4. Edits patient medical info (add allergies, etc.)
+   ↓
+5. Clicks "Valider" button
+   → Prescription signed and saved
+   → Full validation workflow shown
+   → Returns to patient record
+   → Status: SIGNED
+   → Read-only
+```
+
+### Workflow 4: Nurse Create Prescription
+
+```
+1. Nurse creates prescription from text/voice
+   ↓
+2. Enters prescription details
+   ↓
+3. Reviews extracted data on validation screen
+   ↓
+4. Edits patient medical info if needed
+   ↓
+5. Clicks "Valider et enregistrer" button
+   → Prescription created and saved
+   → Returns to patient record
+   → Status: DRAFT (waiting for doctor signature)
+   → Can be edited
+   → Marked as created by nurse
+```
+
+### Workflow 5: Attempt to Edit Signed Prescription
 
 ```
 1. Doctor tries to edit a SIGNED prescription
@@ -214,12 +323,16 @@ Prescription dispensed to patient:
 - Use the edit feature to correct mistakes in drafts
 - Sign prescriptions only when all data is correct
 - Document special instructions for patient safety
+- **Doctors:** Use "Signer" for quick sign when confident
+- **Doctors:** Use "Valider" for full review when uncertain
+- **Nurses:** Review and edit patient info before validation
 
 ### ❌ Don't:
 - Sign prescriptions with incomplete information
 - Attempt to edit signed prescriptions (not allowed)
 - Skip the validation review step
 - Create multiple prescriptions for same patient without reason
+- **Nurses:** Attempt to use the "Signer" button (doctors only)
 
 ---
 
@@ -267,6 +380,17 @@ All fields are optional:
 
 ## Common Questions
 
+**Q: What's the difference between "Signer" and "Valider" buttons?**
+A:
+- **"Signer"** - Quick sign only. Signs prescription immediately and returns to patient record. Use when you're confident.
+- **"Valider"** - Signs and validates. Shows full workflow with patient info review. Use for safety.
+
+**Q: When should I use "Signer" vs "Valider"?**
+A:
+- Use **"Signer"** when prescription details are correct and you just need to finalize
+- Use **"Valider"** when you want to review patient allergies/conditions before signing
+- Both buttons result in a signed prescription - it's about your workflow preference
+
 **Q: Can I edit a prescription after signing?**
 A: No. Once signed, prescriptions are locked and read-only. Create a new prescription if changes are needed.
 
@@ -277,10 +401,13 @@ A: Unlimited. Draft prescriptions can be edited as many times as needed before s
 A: Currently, there's no "unsign" feature. Create a new prescription instead.
 
 **Q: Can a nurse sign prescriptions?**
-A: No. Only doctors can sign. Nurses can create and edit drafts.
+A: No. Only doctors can sign. Nurses can create, edit drafts, and validate prescriptions. The doctor must sign.
 
 **Q: Are edit changes saved immediately?**
 A: Yes. Changes save to database when you click "Enregistrer".
+
+**Q: Why can't I see the "Signer" button?**
+A: The "Signer" button only appears for doctors. If you're logged in as a nurse, you'll only see "Valider et enregistrer". Only doctors can directly sign prescriptions.
 
 ---
 

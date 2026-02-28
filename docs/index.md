@@ -8,7 +8,8 @@ Welcome to the Vocalis documentation. Vocalis is a modern medical AI assistant p
 - **📝 Text Input**: Create prescriptions via natural language text
 - **🤖 AI Processing**: LLM-powered prescription extraction and validation
 - **✏️ Draft Editing**: Edit prescriptions before finalizing (draft-only protection)
-- **✓ Signing Workflow**: Doctors confirm prescriptions with status tracking
+- **✓ Quick Sign**: Doctors can directly sign prescriptions with one click
+- **✓ Full Validation**: Alternative signing workflow with patient info review
 - **👥 Multi-User**: Support for doctors and nurses with role-based access
 - **📱 Cross-Platform**: Flutter frontend for web, iOS, Android, and desktop
 - **🔐 Security**: JWT authentication with bcrypt password hashing

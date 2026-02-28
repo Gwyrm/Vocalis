@@ -223,9 +223,49 @@ flutter run -d <device-name>
 ```
 
 **Solution:**
-- Only doctors can confirm prescriptions
+- Only doctors can sign prescriptions
 - Login as doctor account, not nurse
-- Or create as nurse, have doctor confirm
+- Or create as nurse, have doctor sign afterward
+
+### ❌ "I don't see the 'Signer' button"
+
+**Error:**
+- Validation results screen only shows "Valider et enregistrer"
+- Missing the quick sign option
+
+**Meaning:**
+- You're logged in as a nurse
+- Only doctors see the "Signer" button
+
+**Solution:**
+1. Login as doctor to access quick sign:
+   ```
+   Email: doctor@hopital-demo.fr
+   Password: demo123
+   ```
+
+2. If you need to sign as nurse:
+   - Nurses cannot sign directly
+   - Create prescription, save with "Valider et enregistrer"
+   - Doctor must sign afterward
+
+### ❌ "What's the difference between 'Signer' and 'Valider'?"
+
+**Doctor Buttons Explained:**
+
+| Button | Action | Use When |
+|--------|--------|----------|
+| **Signer** | Quick sign only | Confident prescription is correct |
+| **Valider** | Sign with full validation | Want to review patient info first |
+
+**Both buttons:**
+- Sign the prescription
+- Mark as final
+- Cannot be edited after
+
+**Choose:**
+- **"Signer"** for fast workflow when data looks good
+- **"Valider"** for safety when you need to review allergies/conditions
 
 ## Prescription Issues
 
