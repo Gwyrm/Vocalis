@@ -6,6 +6,7 @@ import '../models/prescription.dart';
 import 'patient_form_screen.dart';
 import 'voice_prescription_screen.dart';
 import 'text_prescription_screen.dart';
+import 'edit_prescription_screen.dart';
 
 class PatientDetailScreen extends StatefulWidget {
   final Patient patient;
@@ -75,6 +76,21 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
         ),
       ),
     );
+  }
+
+  void _editPrescription(Prescription prescription) async {
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => EditPrescriptionScreen(
+          prescription: prescription,
+          patient: _patient,
+          apiService: widget.apiService,
+        ),
+      ),
+    );
+    if (result == true) {
+      _refreshPatient();
+    }
   }
 
   void _showSignPrescriptionDialog(Prescription prescription) {
@@ -443,15 +459,41 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                       ),
                                     ),
                                   ],
-                                  if (!prescription.isSigned) ...[
-                                    const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
+                                  if (prescription.status == 'draft') ...[
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextButton.icon(
+                                            onPressed: () => _editPrescription(prescription),
+                                            icon: const Icon(Icons.edit),
+                                            label: const Text('Éditer'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: () =>
+                                                _showSignPrescriptionDialog(
+                                                  prescription,
+                                                ),
+                                            icon: const Icon(Icons.check_circle),
+                                            label: const Text('Signer'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green.shade600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ] else if (!prescription.isSigned) ...[
                                     SizedBox(
                                       width: double.infinity,
                                       child: ElevatedButton.icon(
                                         onPressed: () =>
                                             _showSignPrescriptionDialog(
-                                          prescription,
-                                        ),
+                                              prescription,
+                                            ),
                                         icon: const Icon(Icons.edit_document),
                                         label: const Text('Signer'),
                                         style: ElevatedButton.styleFrom(

@@ -454,6 +454,33 @@ class ApiService {
     }
   }
 
+  Future<Prescription> updatePrescription(
+    String prescriptionId, {
+    String? medication,
+    String? dosage,
+    String? duration,
+    String? diagnosis,
+    String? specialInstructions,
+  }) async {
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/prescriptions/$prescriptionId'),
+      headers: _authHeaders,
+      body: jsonEncode({
+        if (medication != null) 'medication': medication,
+        if (dosage != null) 'dosage': dosage,
+        if (duration != null) 'duration': duration,
+        if (diagnosis != null) 'diagnosis': diagnosis,
+        if (specialInstructions != null) 'special_instructions': specialInstructions,
+      }),
+    );
+
+    if (response.statusCode == 200) {
+      return Prescription.fromJson(jsonDecode(response.body));
+    } else {
+      throw Exception(_getErrorMessage(response));
+    }
+  }
+
   // ============================================================================
   // PATIENT VISITS / DELIVERIES ENDPOINTS
   // ============================================================================

@@ -526,10 +526,10 @@ async def list_prescriptions(
 async def update_prescription(
     prescription_id: str,
     request: PrescriptionUpdate,
-    current_user: User = Depends(get_doctor),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Update prescription (doctor only)"""
+    """Update prescription (draft only)"""
 
     prescription = db.query(Prescription).filter(
         Prescription.id == prescription_id,
@@ -538,6 +538,10 @@ async def update_prescription(
 
     if not prescription:
         raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Only allow editing draft prescriptions
+    if prescription.status != "draft":
+        raise HTTPException(status_code=403, detail="Only draft prescriptions can be edited")
 
     # Update fields
     if request.diagnosis:
