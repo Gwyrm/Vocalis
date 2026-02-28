@@ -75,6 +75,13 @@
 ## 📋 To-Do
 
 ### High Priority
+- [x] **Prescription Editing (Draft Only)**
+  - [x] Add validation to prevent editing signed prescriptions
+  - [x] Create EditPrescriptionScreen UI
+  - [x] Add updatePrescription endpoint to backend
+  - [x] Add Edit button visible only for draft prescriptions
+  - [x] Implement draft/signed status logic
+
 - [ ] **Profile Management**
   - [ ] Add profile update endpoint (PUT /api/users/profile)
   - [ ] Add password change endpoint (POST /api/users/change-password)
