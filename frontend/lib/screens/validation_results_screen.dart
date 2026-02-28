@@ -26,6 +26,7 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
   late List<String> _currentMedications;
   bool _isEditingPatient = false;
   bool _isSavingChanges = false;
+  bool _isSigning = false;
   bool _hasChanges = false;
 
   @override
@@ -84,6 +85,39 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSavingChanges = false);
+    }
+  }
+
+  Future<void> _signPrescription() async {
+    if (widget.result.prescription == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erreur: Aucune ordonnance à signer')),
+      );
+      return;
+    }
+
+    setState(() => _isSigning = true);
+    try {
+      await widget.apiService.signPrescription(
+        widget.result.prescription!.id,
+        '', // Empty string for signature (already simplified)
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ordonnance signée et enregistrée')),
+        );
+        // Navigate back to patient page
+        Navigator.of(context).pop();
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSigning = false);
     }
   }
 
@@ -520,16 +554,35 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
               ),
 
             const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  // Pop twice: validation screen, then text/voice prescription screen
-                  Navigator.of(context).pop();
-                  Navigator.of(context).pop();
-                },
-                child: const Text('Retour au patient'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: _isSigning
+                        ? null
+                        : () {
+                            // Pop twice: validation screen, then text/voice prescription screen
+                            Navigator.of(context).pop();
+                            Navigator.of(context).pop();
+                          },
+                    child: const Text('Retour au patient'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _isSigning ? null : _signPrescription,
+                    icon: _isSigning
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check_circle),
+                    label: const Text('Valider et enregistrer'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
