@@ -577,7 +577,7 @@ async def list_prescriptions(
 
     prescriptions = query.order_by(Prescription.created_at.desc()).all()
 
-    return [PrescriptionListResponse.from_attributes(p) for p in prescriptions]
+    return [PrescriptionListResponse.model_validate(p) for p in prescriptions]
 
 
 @app.put("/api/prescriptions/{prescription_id}", response_model=PrescriptionResponse)
