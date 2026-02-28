@@ -4,11 +4,13 @@ import '../api_service.dart';
 class InterventionCompletionScreen extends StatefulWidget {
   final String interventionId;
   final VoidCallback onCompleted;
+  final ApiService apiService;
 
   const InterventionCompletionScreen({
     Key? key,
     required this.interventionId,
     required this.onCompleted,
+    required this.apiService,
   }) : super(key: key);
 
   @override
@@ -25,7 +27,7 @@ class _InterventionCompletionScreenState extends State<InterventionCompletionScr
   @override
   void initState() {
     super.initState();
-    apiService = ApiService();
+    apiService = widget.apiService;
   }
 
   @override

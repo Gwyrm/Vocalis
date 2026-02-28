@@ -5,11 +5,13 @@ import '../models/intervention.dart';
 class InterventionDetailScreen extends StatefulWidget {
   final String interventionId;
   final String userRole;
+  final ApiService apiService;
 
   const InterventionDetailScreen({
     Key? key,
     required this.interventionId,
     required this.userRole,
+    required this.apiService,
   }) : super(key: key);
 
   @override
@@ -26,7 +28,7 @@ class _InterventionDetailScreenState extends State<InterventionDetailScreen> {
   @override
   void initState() {
     super.initState();
-    apiService = ApiService();
+    apiService = widget.apiService;
     loadDetails();
   }
 

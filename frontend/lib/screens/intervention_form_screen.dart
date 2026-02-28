@@ -4,11 +4,13 @@ import '../api_service.dart';
 class InterventionFormScreen extends StatefulWidget {
   final String prescriptionId;
   final VoidCallback onCreated;
+  final ApiService apiService;
 
   const InterventionFormScreen({
     Key? key,
     required this.prescriptionId,
     required this.onCreated,
+    required this.apiService,
   }) : super(key: key);
 
   @override
@@ -28,7 +30,7 @@ class _InterventionFormScreenState extends State<InterventionFormScreen> {
   @override
   void initState() {
     super.initState();
-    apiService = ApiService();
+    apiService = widget.apiService;
   }
 
   @override

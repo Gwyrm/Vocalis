@@ -537,6 +537,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                 prescriptionId: '',
                                 patientName: _patient.fullName,
                                 userRole: 'doctor',
+                                apiService: widget.apiService,
                               ),
                             ),
                           );

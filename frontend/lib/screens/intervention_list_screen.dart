@@ -8,12 +8,14 @@ class InterventionListScreen extends StatefulWidget {
   final String prescriptionId;
   final String patientName;
   final String userRole;
+  final ApiService apiService;
 
   const InterventionListScreen({
     Key? key,
     required this.prescriptionId,
     required this.patientName,
     required this.userRole,
+    required this.apiService,
   }) : super(key: key);
 
   @override
@@ -30,7 +32,7 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
   @override
   void initState() {
     super.initState();
-    apiService = ApiService();
+    apiService = widget.apiService;
     loadInterventions();
   }
 
@@ -91,6 +93,7 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
             Navigator.pop(context);
             _onInterventionCreated();
           },
+          apiService: apiService,
         ),
         actions: [
           TextButton(
@@ -239,6 +242,7 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
               builder: (context) => InterventionDetailScreen(
                 interventionId: intervention.id,
                 userRole: widget.userRole,
+                apiService: apiService,
               ),
             ),
           );

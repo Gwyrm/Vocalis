@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart'; // For kIsWeb
 import 'models/patient.dart';
@@ -50,6 +51,18 @@ class ApiService {
       headers['Authorization'] = 'Bearer $_token';
     }
     return headers;
+  }
+
+  Map<String, String> _getHeaders() {
+    return _authHeaders;
+  }
+
+  String _parseError(http.Response response) {
+    try {
+      return jsonDecode(response.body)['detail'] ?? 'Erreur inconnue';
+    } catch (_) {
+      return 'Erreur ${response.statusCode}';
+    }
   }
 
   // ============================================================================
