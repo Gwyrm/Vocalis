@@ -471,7 +471,7 @@ class PatientUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[EmailStr] = None
     address: Optional[str] = None
-    allergies: Optional[List[Dict[str, str]]] = None
+    allergies: Optional[List[str]] = None
     chronic_conditions: Optional[List[str]] = None
     current_medications: Optional[List[str]] = None
     medical_notes: Optional[str] = None
