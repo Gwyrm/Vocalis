@@ -73,6 +73,47 @@ session_lock = asyncio.Lock()
 
 
 # ============================================================================
+# DEDUPLICATION HELPERS
+# ============================================================================
+
+def normalize_item(item: str) -> str:
+    """Normalize allergy/condition/medication string for comparison"""
+    import re
+    if not item:
+        return ""
+    # Remove common prefixes
+    normalized = item.lower().strip()
+    # Remove "allergie aux", "allergie à", "allergie à la", etc.
+    normalized = re.sub(r'^allergie\s+(aux?|à\s+la?)\s+', '', normalized)
+    # Remove extra whitespace
+    normalized = re.sub(r'\s+', ' ', normalized)
+    return normalized
+
+
+def deduplicate_items(items: list) -> list:
+    """
+    Remove duplicates from a list of items (allergies, conditions, medications).
+    Handles cases like "allergie aux orthies" vs "orthies".
+    Keeps the longest (most descriptive) version.
+    """
+    if not items:
+        return []
+
+    # Map normalized -> original items
+    normalized_map = {}
+    for item in items:
+        if not item or not item.strip():
+            continue
+        norm = normalize_item(item)
+        if norm:
+            # Keep the longest version
+            if norm not in normalized_map or len(item) > len(normalized_map[norm]):
+                normalized_map[norm] = item
+
+    return list(normalized_map.values())
+
+
+# ============================================================================
 # STARTUP & SHUTDOWN
 # ============================================================================
 
@@ -2157,11 +2198,14 @@ async def update_patient(
         if request.address is not None:
             patient.address = request.address
         if request.allergies is not None:
-            patient.allergies = json.dumps(request.allergies)
+            # Deduplicate allergies to avoid duplicates like "allergie aux orthies" and "orthies"
+            patient.allergies = json.dumps(deduplicate_items(request.allergies))
         if request.chronic_conditions is not None:
-            patient.chronic_conditions = json.dumps(request.chronic_conditions)
+            # Deduplicate conditions
+            patient.chronic_conditions = json.dumps(deduplicate_items(request.chronic_conditions))
         if request.current_medications is not None:
-            patient.current_medications = json.dumps(request.current_medications)
+            # Deduplicate medications
+            patient.current_medications = json.dumps(deduplicate_items(request.current_medications))
         if request.medical_notes is not None:
             patient.medical_notes = request.medical_notes
 
@@ -2340,12 +2384,13 @@ async def create_voice_prescription(
             if structured.get("allergies"):
                 allergies_str = structured.get("allergies", "").strip()
                 if allergies_str and allergies_str.lower() not in ["aucune", "none", "no", "non"]:
-                    # Add to patient allergies if not already present
-                    if allergies_str not in patient_allergies:
-                        patient_allergies.append(allergies_str)
-                        patient.allergies = json.dumps(patient_allergies)
-                        db.commit()
-                        logger.info(f"Updated patient {patient.id} with allergy: {allergies_str}")
+                    # Add to patient allergies if not already present (with deduplication)
+                    patient_allergies.append(allergies_str)
+                    # Deduplicate to avoid "allergie aux orthies" and "orthies" both being saved
+                    patient_allergies = deduplicate_items(patient_allergies)
+                    patient.allergies = json.dumps(patient_allergies)
+                    db.commit()
+                    logger.info(f"Updated patient {patient.id} with allergy: {allergies_str} (deduplicated: {patient_allergies})")
 
             prescription_response = PrescriptionResponse(
                 id=prescription.id,
@@ -2462,12 +2507,13 @@ async def create_text_prescription(
             if structured.get("allergies"):
                 allergies_str = structured.get("allergies", "").strip()
                 if allergies_str and allergies_str.lower() not in ["aucune", "none", "no", "non"]:
-                    # Add to patient allergies if not already present
-                    if allergies_str not in patient_allergies:
-                        patient_allergies.append(allergies_str)
-                        patient.allergies = json.dumps(patient_allergies)
-                        db.commit()
-                        logger.info(f"Updated patient {patient.id} with allergy: {allergies_str}")
+                    # Add to patient allergies if not already present (with deduplication)
+                    patient_allergies.append(allergies_str)
+                    # Deduplicate to avoid "allergie aux orthies" and "orthies" both being saved
+                    patient_allergies = deduplicate_items(patient_allergies)
+                    patient.allergies = json.dumps(patient_allergies)
+                    db.commit()
+                    logger.info(f"Updated patient {patient.id} with allergy: {allergies_str} (deduplicated: {patient_allergies})")
 
             prescription_response = PrescriptionResponse(
                 id=prescription.id,
