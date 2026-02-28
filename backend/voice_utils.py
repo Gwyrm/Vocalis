@@ -163,6 +163,8 @@ async def parse_prescription_text(text: str) -> Dict:
         "dosage": None,
         "duration": None,
         "special_instructions": None,
+        "diagnosis": None,
+        "allergies": None,
     }
 
     # Create a structured extraction prompt
@@ -175,10 +177,12 @@ Texte de l'ordonnance:
 
 Retourne EXACTEMENT ce format JSON (remplace par null si non trouvé):
 {{
+    "diagnosis": "diagnostic/maladie (ex: bronchite, grippe)",
     "medication": "nom du médicament",
     "dosage": "dosage avec unité (ex: 500mg)",
     "duration": "durée du traitement (ex: 7 jours)",
     "special_instructions": "fréquence et instructions spéciales (ex: trois fois par jour avec repas)",
+    "allergies": "allergies mentionnées (ex: allergie aux pénicillines)",
     "patient_name": "nom du patient si mentionné"
 }}
 
@@ -186,8 +190,9 @@ Règles importantes:
 1. Le dosage DOIT contenir un nombre valide (pas 00, pas 0)
 2. Accepte les variations: mg, g, ml, mcg, gouttes, etc.
 3. Pour la durée: accepte jours, semaines, mois
-4. Retourne UNIQUEMENT du JSON, aucun texte avant ou après
-5. Si un champ n'est pas trouvé, utilise null"""
+4. Extrait diagnostic et allergies si mentionnés dans le texte
+5. Retourne UNIQUEMENT du JSON, aucun texte avant ou après
+6. Si un champ n'est pas trouvé, utilise null"""
 
     try:
         response = await call_ollama(prompt, max_tokens=200)
@@ -206,8 +211,10 @@ Règles importantes:
             prescription["duration"] = parsed_json.get("duration")
             prescription["special_instructions"] = parsed_json.get("special_instructions")
             prescription["patient_name"] = parsed_json.get("patient_name")
+            prescription["diagnosis"] = parsed_json.get("diagnosis")
+            prescription["allergies"] = parsed_json.get("allergies")
 
-            logger.info(f"LLM parsed prescription: medication={prescription['medication']}, dosage={prescription['dosage']}")
+            logger.info(f"LLM parsed prescription: medication={prescription['medication']}, dosage={prescription['dosage']}, diagnosis={prescription['diagnosis']}, allergies={prescription['allergies']}")
         else:
             logger.warning(f"Failed to extract JSON from LLM response: {response}")
 
@@ -272,6 +279,8 @@ async def structure_prescription_data(
         "dosage": parsed.get("dosage"),
         "duration": parsed.get("duration", "30 days"),  # Default
         "special_instructions": parsed.get("special_instructions"),
+        "diagnosis": parsed.get("diagnosis"),
+        "allergies": parsed.get("allergies"),
         "created_at": datetime.utcnow().isoformat(),
         "source": "voice"
     }

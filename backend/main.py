@@ -2336,6 +2336,17 @@ async def create_voice_prescription(
             db.commit()
             db.refresh(prescription)
 
+            # Update patient record with discovered allergies
+            if structured.get("allergies"):
+                allergies_str = structured.get("allergies", "").strip()
+                if allergies_str and allergies_str.lower() not in ["aucune", "none", "no", "non"]:
+                    # Add to patient allergies if not already present
+                    if allergies_str not in patient_allergies:
+                        patient_allergies.append(allergies_str)
+                        patient.allergies = json.dumps(patient_allergies)
+                        db.commit()
+                        logger.info(f"Updated patient {patient.id} with allergy: {allergies_str}")
+
             prescription_response = PrescriptionResponse(
                 id=prescription.id,
                 patient_name=prescription.patient_name,
@@ -2446,6 +2457,17 @@ async def create_text_prescription(
             db.add(prescription)
             db.commit()
             db.refresh(prescription)
+
+            # Update patient record with discovered allergies
+            if structured.get("allergies"):
+                allergies_str = structured.get("allergies", "").strip()
+                if allergies_str and allergies_str.lower() not in ["aucune", "none", "no", "non"]:
+                    # Add to patient allergies if not already present
+                    if allergies_str not in patient_allergies:
+                        patient_allergies.append(allergies_str)
+                        patient.allergies = json.dumps(patient_allergies)
+                        db.commit()
+                        logger.info(f"Updated patient {patient.id} with allergy: {allergies_str}")
 
             prescription_response = PrescriptionResponse(
                 id=prescription.id,

@@ -94,6 +94,8 @@ class PrescriptionData(BaseModel):
     dosage: Optional[str] = None
     duration: Optional[str] = None
     specialInstructions: Optional[str] = None
+    discovered_allergies: Optional[List[str]] = None
+    discovered_conditions: Optional[List[str]] = None
 
     def get_missing_fields(self) -> List[str]:
         """Get list of missing required fields"""
@@ -271,8 +273,8 @@ async def extract_data_from_message(text: str, current_data: PrescriptionData) -
 
     extraction_prompt += (
         f"NOUVEAU MESSAGE:\n{safe_text}\n\n"
-        f"REPONSE (7 lignes SEULEMENT):\n"
-        f"Nom:\nAge:\nDiagnostic:\nMedicament:\nDosage:\nDuree:\nInstructions:"
+        f"REPONSE (9 lignes SEULEMENT, format exact):\n"
+        f"Nom:\nAge:\nDiagnostic:\nMedicament:\nDosage:\nDuree:\nInstructions:\nAllergies:\nConditions:"
     )
 
     try:
@@ -311,6 +313,22 @@ async def extract_data_from_message(text: str, current_data: PrescriptionData) -
                 current_data.duration = sanitize_input(value, 200)
             elif normalized_key == 'instructions' or normalized_key == 'instruction':
                 current_data.specialInstructions = sanitize_input(value, 500)
+            elif normalized_key in ['allergies', 'allergie']:
+                # Store allergies - will be added to patient record
+                allergies_str = sanitize_input(value, 500)
+                if not hasattr(current_data, 'discovered_allergies'):
+                    current_data.discovered_allergies = []
+                if allergies_str and allergies_str.lower() not in ['aucune', 'none', 'no', 'non']:
+                    current_data.discovered_allergies = [allergies_str]
+                    logger.info(f"Discovered allergies: {allergies_str}")
+            elif normalized_key in ['conditions', 'condition']:
+                # Store chronic conditions - will be added to patient record
+                conditions_str = sanitize_input(value, 500)
+                if not hasattr(current_data, 'discovered_conditions'):
+                    current_data.discovered_conditions = []
+                if conditions_str and conditions_str.lower() not in ['aucune', 'none', 'no', 'non']:
+                    current_data.discovered_conditions = [conditions_str]
+                    logger.info(f"Discovered conditions: {conditions_str}")
 
     except Exception as e:
         logger.error(f"Extraction error: {e}")
