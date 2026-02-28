@@ -584,10 +584,10 @@ async def list_prescriptions(
 async def update_prescription(
     prescription_id: str,
     request: PrescriptionUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_doctor),
     db: Session = Depends(get_db_for_request)
 ):
-    """Update prescription (draft only)"""
+    """Update prescription (doctor only, draft only)"""
 
     prescription = db.query(Prescription).filter(
         Prescription.id == prescription_id,
