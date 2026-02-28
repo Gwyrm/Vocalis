@@ -19,12 +19,23 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ProxyProvider<AuthProvider, ApiService>(
-          update: (_, authProvider, apiService) {
+          update: (context, authProvider, apiService) {
             apiService ??= ApiService();
             // Set token on ApiService whenever auth state changes
             if (authProvider.token != null) {
               apiService.setToken(authProvider.token!);
             }
+            // Set auth error callback to logout when token is invalid/expired
+            apiService.setOnAuthError(() {
+              authProvider.logout();
+              // Navigate to login screen
+              if (context.mounted) {
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  (route) => false,
+                );
+              }
+            });
             return apiService;
           },
         ),
