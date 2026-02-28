@@ -1,0 +1,49 @@
+site_name: Vocalis - AI Medical Prescription System
+site_description: Comprehensive documentation for the Vocalis platform
+theme:
+  name: material
+  palette:
+    - scheme: light
+      primary: deep purple
+      accent: purple
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Overview: getting-started/overview.md
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quickstart.md
+  - Architecture:
+    - System Design: architecture/design.md
+    - Database Schema: architecture/database.md
+    - API Overview: architecture/api.md
+  - Backend API:
+    - Authentication: api/authentication.md
+    - Patients: api/patients.md
+    - Prescriptions: api/prescriptions.md
+    - User Management: api/users.md
+  - Frontend:
+    - Flutter App: frontend/app.md
+    - Screens: frontend/screens.md
+    - API Service: frontend/api-service.md
+  - Features:
+    - Text Prescriptions: features/text-prescriptions.md
+    - Voice Prescriptions: features/voice-prescriptions.md
+    - Prescription History: features/history.md
+    - User Roles: features/user-roles.md
+  - Testing:
+    - Backend Tests: testing/backend.md
+    - Manual Testing: testing/manual.md
+  - Deployment:
+    - Backend Deployment: deployment/backend.md
+    - Frontend Deployment: deployment/frontend.md
+  - Troubleshooting: troubleshooting.md

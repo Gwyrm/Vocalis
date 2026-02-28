@@ -25,3 +25,4 @@ frontend/.flutter-plugins-dependencies
 frontend/.metadata
 frontend/build/
 frontend/pubspec.lock
+site/
