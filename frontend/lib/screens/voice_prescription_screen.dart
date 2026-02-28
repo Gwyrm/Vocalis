@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:io';
 import '../api_service.dart';
 import '../models/patient.dart';
+import 'edit_extracted_prescription_screen.dart';
 import 'validation_results_screen.dart';
 
 // Conditional import for path_provider (mobile only)
@@ -125,8 +126,8 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => ValidationResultsScreen(
-              result: result,
+            builder: (context) => EditExtractedPrescriptionScreen(
+              validationResult: result,
               patient: widget.patient,
               apiService: widget.apiService,
             ),

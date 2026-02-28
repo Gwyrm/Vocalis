@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
 import '../models/patient.dart';
+import 'edit_extracted_prescription_screen.dart';
 import 'validation_results_screen.dart';
 
 class TextPrescriptionScreen extends StatefulWidget {
@@ -52,8 +53,8 @@ class _TextPrescriptionScreenState extends State<TextPrescriptionScreen> {
       if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) => ValidationResultsScreen(
-              result: result,
+            builder: (context) => EditExtractedPrescriptionScreen(
+              validationResult: result,
               patient: widget.patient,
               apiService: widget.apiService,
             ),
