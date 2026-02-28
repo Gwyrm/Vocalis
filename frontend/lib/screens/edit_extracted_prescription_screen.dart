@@ -8,12 +8,14 @@ class EditExtractedPrescriptionScreen extends StatefulWidget {
   final PrescriptionValidationResponse validationResult;
   final Patient patient;
   final ApiService apiService;
+  final String? userRole; // 'doctor' or 'nurse'
 
   const EditExtractedPrescriptionScreen({
     Key? key,
     required this.validationResult,
     required this.patient,
     required this.apiService,
+    this.userRole,
   }) : super(key: key);
 
   @override
@@ -98,6 +100,7 @@ class _EditExtractedPrescriptionScreenState
           result: updatedResult,
           patient: widget.patient,
           apiService: widget.apiService,
+          userRole: widget.userRole,
         ),
       ),
     );

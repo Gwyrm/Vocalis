@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../api_service.dart';
 import '../models/patient.dart';
+import '../providers/auth_provider.dart';
 import 'edit_extracted_prescription_screen.dart';
 import 'validation_results_screen.dart';
 
@@ -51,12 +53,14 @@ class _TextPrescriptionScreenState extends State<TextPrescriptionScreen> {
       );
 
       if (mounted) {
+        final userRole = Provider.of<AuthProvider>(context, listen: false).currentUser?.role;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => EditExtractedPrescriptionScreen(
               validationResult: result,
               patient: widget.patient,
               apiService: widget.apiService,
+              userRole: userRole,
             ),
           ),
         );

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:provider/provider.dart';
 import 'package:record/record.dart';
 import 'dart:async';
 import 'dart:io';
 import '../api_service.dart';
 import '../models/patient.dart';
+import '../providers/auth_provider.dart';
 import 'edit_extracted_prescription_screen.dart';
 import 'validation_results_screen.dart';
 
@@ -124,12 +126,14 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       );
 
       if (mounted) {
+        final userRole = Provider.of<AuthProvider>(context, listen: false).currentUser?.role;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => EditExtractedPrescriptionScreen(
               validationResult: result,
               patient: widget.patient,
               apiService: widget.apiService,
+              userRole: userRole,
             ),
           ),
         );
