@@ -28,13 +28,6 @@ class MyApp extends StatelessWidget {
             // Set auth error callback to logout when token is invalid/expired
             apiService.setOnAuthError(() {
               authProvider.logout();
-              // Navigate to login screen
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
             });
             return apiService;
           },
