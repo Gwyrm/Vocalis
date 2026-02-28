@@ -23,7 +23,8 @@ from database import get_db, get_db_for_user, init_db, prod_engine, Base, DEMO_A
 from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
-    Patient, Medication, MedicationInteraction, DrugAllergy, PrescriptionDevice
+    Patient, Medication, MedicationInteraction, DrugAllergy, PrescriptionDevice,
+    Intervention, InterventionLog, InterventionDocument
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
@@ -38,7 +39,10 @@ from schemas import (
     OfflineQueueItem, OfflineSyncPush, OfflineSyncStatus, OfflineDataPackage, SyncConflict,
     PatientCreate, PatientUpdate, PatientResponse, MedicationResponse,
     VoicePrescriptionRequest, TextPrescriptionRequest, PrescriptionValidationResponse,
-    TranscriptionResponse
+    TranscriptionResponse,
+    InterventionCreate, InterventionUpdate, InterventionResponse, InterventionListResponse,
+    InterventionLogCreate, InterventionLogResponse, InterventionDocumentCreate, InterventionDocumentResponse,
+    InterventionDetailResponse
 )
 from auth import (
     hash_password, verify_password, create_access_token, verify_token, TokenData
@@ -2572,6 +2576,413 @@ async def create_text_prescription(
     except Exception as e:
         logger.exception("Text prescription creation error")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# INTERVENTIONS (Follow-up Actions)
+# ============================================================================
+
+@app.post("/api/interventions", response_model=InterventionResponse)
+async def create_intervention(
+    data: InterventionCreate,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Create a new intervention (doctor only)"""
+    # Only doctors can create interventions
+    if current_user.role != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can create interventions")
+
+    # Verify prescription exists and belongs to same org
+    prescription = db.query(Prescription).filter(
+        Prescription.id == data.prescription_id,
+        Prescription.org_id == current_user.org_id
+    ).first()
+    if not prescription:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+
+    # Create intervention
+    intervention = Intervention(
+        id=str(uuid.uuid4()),
+        org_id=current_user.org_id,
+        prescription_id=data.prescription_id,
+        created_by=current_user.user_id,
+        intervention_type=sanitize_input(data.intervention_type),
+        description=sanitize_input(data.description) if data.description else None,
+        scheduled_date=data.scheduled_date,
+        priority=data.priority,
+        status="scheduled"
+    )
+    db.add(intervention)
+    db.commit()
+    db.refresh(intervention)
+
+    return InterventionResponse(
+        id=intervention.id,
+        prescription_id=intervention.prescription_id,
+        intervention_type=intervention.intervention_type,
+        description=intervention.description,
+        scheduled_date=intervention.scheduled_date,
+        priority=intervention.priority,
+        status=intervention.status,
+        created_by=intervention.created_by,
+        created_at=intervention.created_at,
+        updated_at=intervention.updated_at
+    )
+
+
+@app.get("/api/interventions")
+async def list_interventions(
+    prescription_id: Optional[str] = None,
+    status: Optional[str] = None,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """List interventions (filtered by prescription_id if provided)"""
+    query = db.query(Intervention).filter(Intervention.org_id == current_user.org_id)
+
+    if prescription_id:
+        query = query.filter(Intervention.prescription_id == prescription_id)
+
+    if status:
+        query = query.filter(Intervention.status == status)
+
+    interventions = query.all()
+
+    return [
+        InterventionListResponse(
+            id=i.id,
+            prescription_id=i.prescription_id,
+            intervention_type=i.intervention_type,
+            scheduled_date=i.scheduled_date,
+            priority=i.priority,
+            status=i.status,
+            created_at=i.created_at
+        )
+        for i in interventions
+    ]
+
+
+@app.get("/api/interventions/{intervention_id}", response_model=InterventionDetailResponse)
+async def get_intervention(
+    intervention_id: str,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Get intervention details with logs"""
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    logs = db.query(InterventionLog).filter(
+        InterventionLog.intervention_id == intervention_id
+    ).all()
+
+    return InterventionDetailResponse(
+        id=intervention.id,
+        prescription_id=intervention.prescription_id,
+        intervention_type=intervention.intervention_type,
+        description=intervention.description,
+        scheduled_date=intervention.scheduled_date,
+        priority=intervention.priority,
+        status=intervention.status,
+        created_by=intervention.created_by,
+        created_at=intervention.created_at,
+        updated_at=intervention.updated_at,
+        logs=[
+            InterventionLogResponse(
+                id=log.id,
+                intervention_id=log.intervention_id,
+                logged_by=log.logged_by,
+                status_change=log.status_change,
+                notes=log.notes,
+                logged_at=log.logged_at
+            )
+            for log in logs
+        ]
+    )
+
+
+@app.put("/api/interventions/{intervention_id}", response_model=InterventionResponse)
+async def update_intervention(
+    intervention_id: str,
+    data: InterventionUpdate,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Update intervention (doctor only, only if scheduled)"""
+    if current_user.role != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can update interventions")
+
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    if intervention.status != "scheduled":
+        raise HTTPException(status_code=400, detail="Can only update scheduled interventions")
+
+    # Update fields if provided
+    if data.intervention_type:
+        intervention.intervention_type = sanitize_input(data.intervention_type)
+    if data.description:
+        intervention.description = sanitize_input(data.description)
+    if data.scheduled_date:
+        intervention.scheduled_date = data.scheduled_date
+    if data.priority:
+        intervention.priority = data.priority
+
+    intervention.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(intervention)
+
+    return InterventionResponse(
+        id=intervention.id,
+        prescription_id=intervention.prescription_id,
+        intervention_type=intervention.intervention_type,
+        description=intervention.description,
+        scheduled_date=intervention.scheduled_date,
+        priority=intervention.priority,
+        status=intervention.status,
+        created_by=intervention.created_by,
+        created_at=intervention.created_at,
+        updated_at=intervention.updated_at
+    )
+
+
+@app.delete("/api/interventions/{intervention_id}")
+async def delete_intervention(
+    intervention_id: str,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Delete intervention (doctor only, only if scheduled)"""
+    if current_user.role != UserRole.DOCTOR:
+        raise HTTPException(status_code=403, detail="Only doctors can delete interventions")
+
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    if intervention.status != "scheduled":
+        raise HTTPException(status_code=400, detail="Can only delete scheduled interventions")
+
+    db.delete(intervention)
+    db.commit()
+
+    return {"message": "Intervention deleted"}
+
+
+@app.post("/api/interventions/{intervention_id}/log", response_model=InterventionLogResponse)
+async def log_intervention(
+    intervention_id: str,
+    data: InterventionLogCreate,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Log intervention completion/status change (doctor or nurse)"""
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    # Create log entry
+    log = InterventionLog(
+        id=str(uuid.uuid4()),
+        intervention_id=intervention_id,
+        logged_by=current_user.user_id,
+        status_change=sanitize_input(data.status_change),
+        notes=sanitize_input(data.notes) if data.notes else None
+    )
+    db.add(log)
+
+    # Update intervention status based on status_change
+    if "→" in data.status_change:
+        new_status = data.status_change.split("→")[-1].strip()
+        if new_status in ["scheduled", "in_progress", "completed", "cancelled"]:
+            intervention.status = new_status
+            intervention.updated_at = datetime.utcnow()
+
+    db.commit()
+    db.refresh(log)
+
+    return InterventionLogResponse(
+        id=log.id,
+        intervention_id=log.intervention_id,
+        logged_by=log.logged_by,
+        status_change=log.status_change,
+        notes=log.notes,
+        logged_at=log.logged_at
+    )
+
+
+@app.post("/api/interventions/{intervention_id}/documents", response_model=InterventionDocumentResponse)
+async def upload_intervention_document(
+    intervention_id: str,
+    file: UploadFile = File(...),
+    document_type: str = Form("note"),
+    caption: Optional[str] = Form(None),
+    log_id: Optional[str] = Form(None),
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Upload document to intervention log"""
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    # If no log_id provided, use the most recent log
+    if not log_id:
+        latest_log = db.query(InterventionLog).filter(
+            InterventionLog.intervention_id == intervention_id
+        ).order_by(InterventionLog.logged_at.desc()).first()
+
+        if not latest_log:
+            raise HTTPException(status_code=400, detail="No intervention logs found")
+        log_id = latest_log.id
+    else:
+        # Verify log belongs to this intervention
+        log = db.query(InterventionLog).filter(
+            InterventionLog.id == log_id,
+            InterventionLog.intervention_id == intervention_id
+        ).first()
+        if not log:
+            raise HTTPException(status_code=404, detail="Log not found")
+
+    # Save file
+    file_content = await file.read()
+    file_size = len(file_content)
+
+    # Create temp file path
+    file_ext = file.filename.split(".")[-1] if "." in file.filename else "bin"
+    file_path = f"documents/interventions/{intervention_id}/{str(uuid.uuid4())}.{file_ext}"
+
+    # Ensure directory exists
+    import os
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    # Write file
+    with open(file_path, "wb") as f:
+        f.write(file_content)
+
+    # Create document record
+    document = InterventionDocument(
+        id=str(uuid.uuid4()),
+        log_id=log_id,
+        document_type=document_type,
+        file_path=file_path,
+        file_name=file.filename,
+        mime_type=file.content_type,
+        file_size=file_size,
+        caption=sanitize_input(caption) if caption else None
+    )
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    return InterventionDocumentResponse(
+        id=document.id,
+        log_id=document.log_id,
+        document_type=document.document_type,
+        file_name=document.file_name,
+        file_path=document.file_path,
+        mime_type=document.mime_type,
+        file_size=document.file_size,
+        caption=document.caption,
+        uploaded_at=document.uploaded_at
+    )
+
+
+@app.get("/api/interventions/{intervention_id}/logs")
+async def get_intervention_logs(
+    intervention_id: str,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Get all logs for an intervention"""
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    logs = db.query(InterventionLog).filter(
+        InterventionLog.intervention_id == intervention_id
+    ).order_by(InterventionLog.logged_at.desc()).all()
+
+    return [
+        InterventionLogResponse(
+            id=log.id,
+            intervention_id=log.intervention_id,
+            logged_by=log.logged_by,
+            status_change=log.status_change,
+            notes=log.notes,
+            logged_at=log.logged_at
+        )
+        for log in logs
+    ]
+
+
+@app.get("/api/interventions/{intervention_id}/documents")
+async def get_intervention_documents(
+    intervention_id: str,
+    current_user: TokenData = Depends(verify_token),
+    db: Session = Depends(get_db)
+):
+    """Get all documents for an intervention"""
+    intervention = db.query(Intervention).filter(
+        Intervention.id == intervention_id,
+        Intervention.org_id == current_user.org_id
+    ).first()
+
+    if not intervention:
+        raise HTTPException(status_code=404, detail="Intervention not found")
+
+    # Get all logs for this intervention
+    logs = db.query(InterventionLog).filter(
+        InterventionLog.intervention_id == intervention_id
+    ).all()
+    log_ids = [log.id for log in logs]
+
+    # Get all documents from these logs
+    documents = db.query(InterventionDocument).filter(
+        InterventionDocument.log_id.in_(log_ids)
+    ).order_by(InterventionDocument.uploaded_at.desc()).all()
+
+    return [
+        InterventionDocumentResponse(
+            id=doc.id,
+            log_id=doc.log_id,
+            document_type=doc.document_type,
+            file_name=doc.file_name,
+            file_path=doc.file_path,
+            mime_type=doc.mime_type,
+            file_size=doc.file_size,
+            caption=doc.caption,
+            uploaded_at=doc.uploaded_at
+        )
+        for doc in documents
+    ]
 
 
 # ============================================================================

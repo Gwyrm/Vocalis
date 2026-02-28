@@ -573,6 +573,118 @@ class TranscriptionResponse(BaseModel):
 
 
 # ============================================================================
+# Intervention Schemas
+# ============================================================================
+
+class InterventionCreate(BaseModel):
+    """Create intervention request"""
+    prescription_id: str
+    intervention_type: str
+    description: Optional[str] = None
+    scheduled_date: datetime
+    priority: str = "normal"
+
+
+class InterventionUpdate(BaseModel):
+    """Update intervention request"""
+    intervention_type: Optional[str] = None
+    description: Optional[str] = None
+    scheduled_date: Optional[datetime] = None
+    priority: Optional[str] = None
+    status: Optional[str] = None
+
+
+class InterventionResponse(BaseModel):
+    """Intervention response"""
+    id: str
+    prescription_id: str
+    intervention_type: str
+    description: Optional[str]
+    scheduled_date: datetime
+    priority: str
+    status: str
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class InterventionListResponse(BaseModel):
+    """Intervention list response"""
+    id: str
+    prescription_id: str
+    intervention_type: str
+    scheduled_date: datetime
+    priority: str
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class InterventionLogCreate(BaseModel):
+    """Log intervention status change"""
+    status_change: str
+    notes: Optional[str] = None
+
+
+class InterventionLogResponse(BaseModel):
+    """Intervention log response"""
+    id: str
+    intervention_id: str
+    logged_by: str
+    status_change: str
+    notes: Optional[str]
+    logged_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class InterventionDocumentCreate(BaseModel):
+    """Upload document to intervention log"""
+    document_type: str = "note"  # note, photo, result, other
+    caption: Optional[str] = None
+
+
+class InterventionDocumentResponse(BaseModel):
+    """Intervention document response"""
+    id: str
+    log_id: str
+    document_type: str
+    file_name: str
+    file_path: str
+    mime_type: Optional[str]
+    file_size: Optional[int]
+    caption: Optional[str]
+    uploaded_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class InterventionDetailResponse(BaseModel):
+    """Full intervention with logs and documents"""
+    id: str
+    prescription_id: str
+    intervention_type: str
+    description: Optional[str]
+    scheduled_date: datetime
+    priority: str
+    status: str
+    created_by: str
+    created_at: datetime
+    updated_at: datetime
+    logs: List[InterventionLogResponse] = []
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================================
 # Error Schemas
 # ============================================================================
 

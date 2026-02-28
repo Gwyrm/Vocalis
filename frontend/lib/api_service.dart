@@ -572,4 +572,208 @@ class ApiService {
       return body.substring(0, 50).replaceAll('\n', ' ') + '...';
     }
   }
+
+  // ============================================================================
+  // INTERVENTIONS
+  // ============================================================================
+
+  /// Create a new intervention (doctor only)
+  Future<Map<String, dynamic>> createIntervention({
+    required String prescriptionId,
+    required String interventionType,
+    String? description,
+    required DateTime scheduledDate,
+    String priority = 'normal',
+  }) async {
+    final body = {
+      'prescription_id': prescriptionId,
+      'intervention_type': interventionType,
+      if (description != null) 'description': description,
+      'scheduled_date': scheduledDate.toIso8601String(),
+      'priority': priority,
+    };
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/interventions'),
+      headers: _getHeaders(),
+      body: jsonEncode(body),
+    ).timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response);
+    }
+  }
+
+  /// Get list of interventions (optionally filtered by prescription_id and status)
+  Future<List<Map<String, dynamic>>> getInterventions({
+    String? prescriptionId,
+    String? status,
+  }) async {
+    final queryParams = <String, String>{};
+    if (prescriptionId != null) queryParams['prescription_id'] = prescriptionId;
+    if (status != null) queryParams['status'] = status;
+
+    final uri = Uri.parse('$baseUrl/api/interventions').replace(queryParameters: queryParams);
+    final response = await http.get(uri, headers: _getHeaders()).timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw _parseError(response);
+    }
+  }
+
+  /// Get intervention details with logs
+  Future<Map<String, dynamic>> getIntervention(String interventionId) async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/interventions/$interventionId'),
+          headers: _getHeaders(),
+        )
+        .timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response);
+    }
+  }
+
+  /// Update intervention (doctor only, only if scheduled)
+  Future<Map<String, dynamic>> updateIntervention(
+    String interventionId, {
+    String? interventionType,
+    String? description,
+    DateTime? scheduledDate,
+    String? priority,
+    String? status,
+  }) async {
+    final body = <String, dynamic>{};
+    if (interventionType != null) body['intervention_type'] = interventionType;
+    if (description != null) body['description'] = description;
+    if (scheduledDate != null) body['scheduled_date'] = scheduledDate.toIso8601String();
+    if (priority != null) body['priority'] = priority;
+    if (status != null) body['status'] = status;
+
+    final response = await http.put(
+      Uri.parse('$baseUrl/api/interventions/$interventionId'),
+      headers: _getHeaders(),
+      body: jsonEncode(body),
+    ).timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response);
+    }
+  }
+
+  /// Delete intervention (doctor only, only if scheduled)
+  Future<void> deleteIntervention(String interventionId) async {
+    final response = await http.delete(
+      Uri.parse('$baseUrl/api/interventions/$interventionId'),
+      headers: _getHeaders(),
+    ).timeout(Duration(seconds: 30));
+
+    if (response.statusCode != 200) {
+      throw _parseError(response);
+    }
+  }
+
+  /// Log intervention status change
+  Future<Map<String, dynamic>> logIntervention(
+    String interventionId, {
+    required String statusChange,
+    String? notes,
+  }) async {
+    final body = {
+      'status_change': statusChange,
+      if (notes != null) 'notes': notes,
+    };
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/api/interventions/$interventionId/log'),
+      headers: _getHeaders(),
+      body: jsonEncode(body),
+    ).timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(response.body) as Map<String, dynamic>;
+    } else {
+      throw _parseError(response);
+    }
+  }
+
+  /// Get all logs for an intervention
+  Future<List<Map<String, dynamic>>> getInterventionLogs(String interventionId) async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/interventions/$interventionId/logs'),
+          headers: _getHeaders(),
+        )
+        .timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw _parseError(response);
+    }
+  }
+
+  /// Upload document to intervention log
+  Future<Map<String, dynamic>> uploadInterventionDocument(
+    String interventionId, {
+    required File file,
+    String documentType = 'note',
+    String? caption,
+    String? logId,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/api/interventions/$interventionId/documents'),
+    );
+
+    // Add headers
+    request.headers.addAll(_getHeaders());
+
+    // Add fields
+    request.fields['document_type'] = documentType;
+    if (caption != null) request.fields['caption'] = caption;
+    if (logId != null) request.fields['log_id'] = logId;
+
+    // Add file
+    request.files.add(
+      await http.MultipartFile.fromPath('file', file.path),
+    );
+
+    final response = await request.send().timeout(Duration(seconds: 60));
+    final responseBody = await response.stream.bytesToString();
+
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      return jsonDecode(responseBody) as Map<String, dynamic>;
+    } else {
+      throw _parseError(http.Response(responseBody, response.statusCode));
+    }
+  }
+
+  /// Get all documents for an intervention
+  Future<List<Map<String, dynamic>>> getInterventionDocuments(String interventionId) async {
+    final response = await http
+        .get(
+          Uri.parse('$baseUrl/api/interventions/$interventionId/documents'),
+          headers: _getHeaders(),
+        )
+        .timeout(Duration(seconds: 30));
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    } else {
+      throw _parseError(response);
+    }
+  }
 }

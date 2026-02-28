@@ -91,6 +91,7 @@ class Prescription(Base):
     patient = relationship("Patient", back_populates="prescriptions")
     patient_visits = relationship("PatientVisit", back_populates="prescription")
     devices = relationship("PrescriptionDevice", back_populates="prescription", cascade="all, delete-orphan")
+    interventions = relationship("Intervention", back_populates="prescription", cascade="all, delete-orphan")
 
 
 class PrescriptionDevice(Base):
@@ -366,3 +367,70 @@ class OfflineQueue(Base):
     error_message = Column(Text)
 
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Intervention(Base):
+    """Planned intervention/follow-up action for a prescription"""
+    __tablename__ = "interventions"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    org_id = Column(String(36), ForeignKey("organizations.id"), nullable=False)
+    prescription_id = Column(String(36), ForeignKey("prescriptions.id"), nullable=False)
+    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+
+    # Intervention details
+    intervention_type = Column(String(255), nullable=False)  # e.g., "Blood test", "Follow-up call"
+    description = Column(Text)  # Detailed description
+    scheduled_date = Column(DateTime, nullable=False)  # When intervention should occur
+    priority = Column(String(50), default="normal")  # low, normal, high
+
+    # Status tracking
+    status = Column(String(50), default="scheduled")  # scheduled, in_progress, completed, cancelled
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    organization = relationship("Organization")
+    prescription = relationship("Prescription")
+    created_by_user = relationship("User")
+    logs = relationship("InterventionLog", back_populates="intervention", cascade="all, delete-orphan")
+
+
+class InterventionLog(Base):
+    """Log entries for intervention completion/status changes"""
+    __tablename__ = "intervention_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    intervention_id = Column(String(36), ForeignKey("interventions.id"), nullable=False)
+    logged_by = Column(String(36), ForeignKey("users.id"), nullable=False)
+
+    # What changed
+    status_change = Column(String(255))  # e.g., "scheduled→in_progress"
+    notes = Column(Text)  # Intervention notes/findings
+    logged_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    intervention = relationship("Intervention", back_populates="logs")
+    logged_by_user = relationship("User")
+    documents = relationship("InterventionDocument", back_populates="log", cascade="all, delete-orphan")
+
+
+class InterventionDocument(Base):
+    """Documents attached to intervention logs (photos, results, etc.)"""
+    __tablename__ = "intervention_documents"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    log_id = Column(String(36), ForeignKey("intervention_logs.id"), nullable=False)
+
+    # Document details
+    document_type = Column(String(50), default="note")  # note, photo, result, other
+    file_path = Column(String(500), nullable=False)  # Local path or S3 URL
+    file_name = Column(String(255), nullable=False)
+    mime_type = Column(String(100))  # e.g., "image/jpeg", "application/pdf"
+    file_size = Column(Integer)  # Size in bytes
+    caption = Column(String(500))  # Description of document
+
+    uploaded_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    log = relationship("InterventionLog", back_populates="documents")
