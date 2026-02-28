@@ -2263,10 +2263,10 @@ async def transcribe_voice(
 async def create_voice_prescription(
     patient_id: str = Form(...),
     file: UploadFile = File(None),
-    current_user: User = Depends(get_doctor),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Create prescription from voice input with validation (doctors only)"""
+    """Create prescription from voice input with validation"""
     temp_audio_path = None
     try:
         # Get patient data
@@ -2389,10 +2389,10 @@ async def create_voice_prescription(
 @app.post("/api/prescriptions/text", response_model=PrescriptionValidationResponse)
 async def create_text_prescription(
     request: TextPrescriptionRequest,
-    current_user: User = Depends(get_doctor),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Create prescription from text input with validation (doctors only)"""
+    """Create prescription from text input with validation"""
     try:
         # Get patient data
         patient = db.query(Patient).filter(
