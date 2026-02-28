@@ -614,10 +614,9 @@ async def sign_prescription(
     current_user: User = Depends(get_doctor),
     db: Session = Depends(get_db_for_request)
 ):
-    """Sign prescription with doctor's digital signature (doctor only)
+    """Confirm/sign prescription (doctor only)
 
-    This makes the prescription legally valid for use.
-    Signatures are stored as base64 encoded PNG images.
+    This marks the prescription as confirmed and ready for use.
     """
 
     prescription = db.query(Prescription).filter(
@@ -632,18 +631,11 @@ async def sign_prescription(
     if prescription.created_by != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=403, detail="Only the doctor who created this prescription can sign it")
 
-    # Validate signature image if provided
-    if request.doctor_signature:
-        signature_image = validate_signature_image(request.doctor_signature)
-        if not signature_image:
-            raise HTTPException(status_code=422, detail="Invalid signature image. Must be a valid PNG file, max 1MB")
-
     # Check if already signed
     if prescription.is_signed:
         raise HTTPException(status_code=400, detail="Prescription is already signed")
 
     # Sign the prescription
-    prescription.doctor_signature = request.doctor_signature
     prescription.doctor_signed_at = datetime.utcnow()
     prescription.is_signed = True
     prescription.status = "signed"  # Change status to indicate it's signed
@@ -651,7 +643,7 @@ async def sign_prescription(
     db.commit()
     db.refresh(prescription)
 
-    logger.info(f"Prescription signed by doctor {current_user.email}: {prescription.id}")
+    logger.info(f"Prescription confirmed by doctor {current_user.email}: {prescription.id}")
 
     return PrescriptionResponse(
         id=prescription.id,
