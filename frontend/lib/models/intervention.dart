@@ -29,16 +29,16 @@ class Intervention {
 
   factory Intervention.fromJson(Map<String, dynamic> json) {
     return Intervention(
-      id: json['id'] as String,
-      prescriptionId: json['prescription_id'] as String,
-      interventionType: json['intervention_type'] as String,
+      id: json['id'] as String? ?? '',
+      prescriptionId: json['prescription_id'] as String? ?? '',
+      interventionType: json['intervention_type'] as String? ?? '',
       description: json['description'] as String?,
-      scheduledDate: DateTime.parse(json['scheduled_date'] as String),
-      priority: json['priority'] as String,
-      status: json['status'] as String,
-      createdBy: json['created_by'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      scheduledDate: json['scheduled_date'] != null ? DateTime.parse(json['scheduled_date'] as String) : DateTime.now(),
+      priority: json['priority'] as String? ?? 'normal',
+      status: json['status'] as String? ?? 'scheduled',
+      createdBy: json['created_by'] as String? ?? 'unknown',
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : DateTime.now(),
     );
   }
 
@@ -109,12 +109,12 @@ class InterventionLog {
 
   factory InterventionLog.fromJson(Map<String, dynamic> json) {
     return InterventionLog(
-      id: json['id'] as String,
-      interventionId: json['intervention_id'] as String,
-      loggedBy: json['logged_by'] as String,
-      statusChange: json['status_change'] as String,
+      id: json['id'] as String? ?? '',
+      interventionId: json['intervention_id'] as String? ?? '',
+      loggedBy: json['logged_by'] as String? ?? 'unknown',
+      statusChange: json['status_change'] as String? ?? '',
       notes: json['notes'] as String?,
-      loggedAt: DateTime.parse(json['logged_at'] as String),
+      loggedAt: json['logged_at'] != null ? DateTime.parse(json['logged_at'] as String) : DateTime.now(),
     );
   }
 
@@ -159,15 +159,15 @@ class InterventionDocument {
 
   factory InterventionDocument.fromJson(Map<String, dynamic> json) {
     return InterventionDocument(
-      id: json['id'] as String,
-      logId: json['log_id'] as String,
-      documentType: json['document_type'] as String,
-      fileName: json['file_name'] as String,
-      filePath: json['file_path'] as String,
+      id: json['id'] as String? ?? '',
+      logId: json['log_id'] as String? ?? '',
+      documentType: json['document_type'] as String? ?? 'other',
+      fileName: json['file_name'] as String? ?? 'document',
+      filePath: json['file_path'] as String? ?? '',
       mimeType: json['mime_type'] as String?,
       fileSize: json['file_size'] as int?,
       caption: json['caption'] as String?,
-      uploadedAt: DateTime.parse(json['uploaded_at'] as String),
+      uploadedAt: json['uploaded_at'] != null ? DateTime.parse(json['uploaded_at'] as String) : DateTime.now(),
     );
   }
 
@@ -242,16 +242,16 @@ class InterventionDetail {
   factory InterventionDetail.fromJson(Map<String, dynamic> json) {
     var logsJson = json['logs'] as List? ?? [];
     return InterventionDetail(
-      id: json['id'] as String,
-      prescriptionId: json['prescription_id'] as String,
-      interventionType: json['intervention_type'] as String,
+      id: json['id'] as String? ?? '',
+      prescriptionId: json['prescription_id'] as String? ?? '',
+      interventionType: json['intervention_type'] as String? ?? '',
       description: json['description'] as String?,
-      scheduledDate: DateTime.parse(json['scheduled_date'] as String),
-      priority: json['priority'] as String,
-      status: json['status'] as String,
-      createdBy: json['created_by'] as String,
-      createdAt: DateTime.parse(json['created_at'] as String),
-      updatedAt: DateTime.parse(json['updated_at'] as String),
+      scheduledDate: json['scheduled_date'] != null ? DateTime.parse(json['scheduled_date'] as String) : DateTime.now(),
+      priority: json['priority'] as String? ?? 'normal',
+      status: json['status'] as String? ?? 'scheduled',
+      createdBy: json['created_by'] as String? ?? 'unknown',
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : DateTime.now(),
+      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : DateTime.now(),
       logs: logsJson.map((log) => InterventionLog.fromJson(log as Map<String, dynamic>)).toList(),
     );
   }
