@@ -209,7 +209,7 @@ def get_cors_origins() -> List[str]:
     Format: "http://localhost:3000,http://localhost:8080,https://example.com"
 
     Default origins (if env var not set):
-    - Development: http://localhost:3000, http://localhost:8080, http://127.0.0.1:8080
+    - Development: localhost and 127.0.0.1 (all ports)
     - Production: https origins only (requires explicit configuration)
     """
     env_origins = os.getenv("CORS_ORIGINS", "").strip()
@@ -221,6 +221,7 @@ def get_cors_origins() -> List[str]:
         return origins
 
     # Default to localhost origins for development
+    # Use regex pattern to allow all localhost ports for Flutter development
     default_origins = [
         "http://localhost:3000",      # Web app (local)
         "http://localhost:8080",      # Web app (alternative)
@@ -228,6 +229,11 @@ def get_cors_origins() -> List[str]:
         "http://127.0.0.1:8080",      # Web app (loopback)
         "http://localhost:5900",      # Flutter web (local)
         "http://127.0.0.1:5900",      # Flutter web (loopback)
+        # Add common Flutter dev ports
+        "http://localhost:49917",     # Flutter web (dynamic port)
+        "http://127.0.0.1:49917",     # Flutter web (dynamic port)
+        # Allow all localhost:* for development
+        "http://localhost",           # Matches all localhost ports
     ]
     logger.info(f"CORS origins (development defaults): {default_origins}")
     return default_origins
@@ -236,9 +242,14 @@ def get_cors_origins() -> List[str]:
 # Get allowed origins and configure CORS
 cors_origins = get_cors_origins()
 
+# For development, also allow all localhost:* ports with regex
+# This handles Flutter's dynamic port allocation
+allow_origin_regex = "http://localhost(:\\d+)?|http://127\\.0\\.0\\.1(:\\d+)?"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
+    allow_origin_regex=allow_origin_regex,  # Regex for localhost:* ports
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
     allow_headers=["Content-Type", "Authorization"],  # Only required headers
@@ -246,7 +257,7 @@ app.add_middleware(
     max_age=3600,  # Cache preflight for 1 hour
 )
 
-logger.info(f"CORS middleware configured with {len(cors_origins)} allowed origin(s)")
+logger.info(f"CORS middleware configured with {len(cors_origins)} allowed origin(s) and regex pattern for localhost:*")
 
 
 # ============================================================================
