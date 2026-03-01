@@ -6,6 +6,7 @@ from passlib.context import CryptContext
 from jose import JWTError, jwt
 import os
 import logging
+import uuid
 
 logger = logging.getLogger("vocalis-backend")
 
@@ -14,6 +15,7 @@ _DEFAULT_JWT_SECRET = "your-secret-key-change-in-production"
 JWT_SECRET = os.getenv("JWT_SECRET", _DEFAULT_JWT_SECRET)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+REFRESH_TOKEN_EXPIRATION_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRATION_DAYS", "7"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
 # Password hashing - use argon2 for secure password storage (more reliable than bcrypt)
@@ -114,3 +116,48 @@ def validate_jwt_secret() -> bool:
         logger.info("JWT secret configured from environment variable (secure)")
 
     return True
+
+
+def create_refresh_token(user_id: str, org_id: str, email: str, token_family: str) -> str:
+    """Create a long-lived JWT refresh token"""
+    jti = str(uuid.uuid4())  # Unique token ID for tracking
+    payload = {
+        "user_id": user_id,
+        "org_id": org_id,
+        "email": email,
+        "type": "refresh",
+        "jti": jti,
+        "token_family": token_family,
+        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRATION_DAYS),
+        "iat": datetime.now(timezone.utc),
+    }
+    token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return token
+
+
+def verify_refresh_token(token: str) -> Optional[dict]:
+    """Verify and decode a refresh token, returns payload if valid"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+
+        # Ensure this is a refresh token
+        if payload.get("type") != "refresh":
+            return None
+
+        user_id = payload.get("user_id")
+        org_id = payload.get("org_id")
+        jti = payload.get("jti")
+        token_family = payload.get("token_family")
+
+        if not all([user_id, org_id, jti, token_family]):
+            return None
+
+        return payload
+    except JWTError as e:
+        logger.warning(f"Refresh token verification failed: {e}")
+        return None
+
+
+def get_refresh_token_expiration() -> timedelta:
+    """Get refresh token expiration time"""
+    return timedelta(days=REFRESH_TOKEN_EXPIRATION_DAYS)

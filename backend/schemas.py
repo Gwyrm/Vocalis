@@ -28,7 +28,36 @@ class TokenResponse(BaseModel):
     """JWT token response"""
     access_token: str
     token_type: str = "bearer"
+    expires_in: int  # Access token expiration in seconds
+    refresh_token: str  # Refresh token for getting new access tokens
+    refresh_expires_in: int = 604800  # Refresh token expiration in seconds (7 days default)
     user: dict  # Include user info {id, email, role, org_id}
+
+
+class RefreshTokenRequest(BaseModel):
+    """Request to refresh access token"""
+    refresh_token: str
+
+
+class TokenRefreshResponse(BaseModel):
+    """Response when refreshing access token"""
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # Access token expiration in seconds
+    refresh_token: str  # New rotated refresh token
+    refresh_expires_in: int = 604800
+    status: str = "token_rotated"
+
+
+class LogoutRequest(BaseModel):
+    """Request to logout (revoke refresh token)"""
+    refresh_token: str
+
+
+class LogoutResponse(BaseModel):
+    """Logout response"""
+    status: str
+    message: str
 
 
 class CurrentUserResponse(BaseModel):

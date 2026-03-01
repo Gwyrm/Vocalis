@@ -81,9 +81,11 @@ Now: Explicit whitelist
 
 ---
 
-## JWT Secret Configuration
+## JWT Configuration
 
-### Issue
+### JWT Secret Configuration
+
+#### Issue
 Default secret is visible in code:
 ```python
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
@@ -208,6 +210,122 @@ INFO:vocalis-backend:JWT secret configured from environment variable (secure)
 - Different behavior based on ENVIRONMENT variable
 - Easy multi-environment deployment
 - Clear separation of concerns
+
+---
+
+### JWT Refresh Token Configuration
+
+#### Overview
+Vocalis now implements a two-token authentication system for improved security:
+- **Access tokens**: Short-lived (default: 24 hours)
+- **Refresh tokens**: Long-lived (default: 7 days)
+
+#### Configuration
+
+**Access Token Expiration (hours):**
+```bash
+JWT_EXPIRATION_HOURS=24
+```
+
+**Refresh Token Expiration (days):**
+```bash
+REFRESH_TOKEN_EXPIRATION_DAYS=7
+```
+
+#### Recommended Settings by Environment
+
+**Development:**
+```bash
+JWT_EXPIRATION_HOURS=24
+REFRESH_TOKEN_EXPIRATION_DAYS=7
+```
+
+**Production (High Security - Frequent Refreshes):**
+```bash
+JWT_EXPIRATION_HOURS=1
+REFRESH_TOKEN_EXPIRATION_DAYS=7
+```
+
+**Production (Standard Security - Less Overhead):**
+```bash
+JWT_EXPIRATION_HOURS=24
+REFRESH_TOKEN_EXPIRATION_DAYS=7
+```
+
+#### Key Security Features
+
+✅ **Token Rotation**
+- Each refresh generates new refresh token
+- Prevents token replay attacks
+- Maintains grace period for offline clients
+
+✅ **Database Tracking**
+- Refresh tokens stored in database
+- Enables immediate revocation
+- Tracks token usage (last_used_at)
+
+✅ **Organization Isolation**
+- All tokens scoped to organization
+- Prevents cross-organization token use
+- Multi-tenant safe
+
+✅ **Rate Limiting**
+- Refresh endpoint: 30/minute (reasonable usage)
+- Login: 5/minute (brute force prevention)
+- Protects against abuse
+
+#### Database Requirements
+
+The system requires the `refresh_tokens` table:
+```sql
+CREATE TABLE refresh_tokens (
+  id UUID PRIMARY KEY,
+  jti VARCHAR(255) UNIQUE,
+  user_id UUID FOREIGN KEY,
+  org_id UUID FOREIGN KEY,
+  token_family VARCHAR(36),
+  created_at TIMESTAMP,
+  expires_at TIMESTAMP,
+  revoked_at TIMESTAMP,
+  last_used_at TIMESTAMP,
+  is_revoked BOOLEAN
+);
+```
+
+This table is automatically created by SQLAlchemy on first startup.
+
+#### API Endpoints
+
+**New endpoints for token management:**
+- `POST /api/auth/refresh` - Get new access + refresh tokens
+- `POST /api/auth/logout` - Revoke single refresh token
+- `POST /api/auth/logout-all` - Revoke all tokens (all devices)
+
+See `REFRESH_TOKENS.md` for complete API documentation.
+
+#### Testing Refresh Tokens
+
+```bash
+# Login (get tokens)
+curl -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.fr", "password": "password123"}'
+
+# Use refresh token to get new access token
+curl -X POST http://localhost:8080/api/auth/refresh \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<refresh_token>"}'
+
+# Logout (revoke single token)
+curl -X POST http://localhost:8080/api/auth/logout \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{"refresh_token": "<refresh_token>"}'
+
+# Logout all devices
+curl -X POST http://localhost:8080/api/auth/logout-all \
+  -H "Authorization: Bearer <access_token>"
+```
 
 ---
 
@@ -421,11 +539,21 @@ INFO:vocalis-backend:CORS middleware configured with 1 allowed origin(s)
 
 ---
 
-## Related Security Fixes (Planned)
+## Security Features Status
 
-See `CLAUDE.md` and `CODE_REVIEW.md` for:
-- [ ] Rate limiting (prevent brute force)
-- [ ] JWT refresh tokens
-- [ ] Token blacklist/revocation
-- [ ] Request correlation IDs
-- [ ] SQL injection prevention (via Pydantic)
+### Implemented ✅
+- [x] JWT secret validation (required in production)
+- [x] CORS configuration (restricted origins)
+- [x] Rate limiting (prevent brute force)
+- [x] JWT refresh tokens (token rotation, revocation)
+- [x] Prompt injection prevention
+- [x] Signature image validation
+- [x] Async/await pattern (thread safety)
+
+### Future Enhancements
+- [ ] Device fingerprinting (bind tokens to devices)
+- [ ] Conditional access (require re-auth for sensitive operations)
+- [ ] Token scope (different permissions per token)
+- [ ] Account recovery codes (backup authentication)
+- [ ] Geographic anomaly detection (suspicious logins)
+- [ ] Request correlation IDs (audit trail)

@@ -16,9 +16,10 @@ import tempfile
 import uuid
 import uvicorn
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 from haversine import haversine, Unit
+from jose import jwt
 
 # Local imports
 from database import get_db, get_db_for_user, init_db, prod_engine, Base, DEMO_ACCOUNT_EMAIL, DemoSessionLocal
@@ -26,10 +27,12 @@ from models import (
     User, Prescription, Organization, UserRole, PatientVisit, Device, VisitDetail,
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
     Patient, Medication, MedicationInteraction, DrugAllergy, PrescriptionDevice,
-    Intervention, InterventionLog, InterventionDocument
+    Intervention, InterventionLog, InterventionDocument,
+    RefreshToken, TokenBlacklist
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
+    RefreshTokenRequest, TokenRefreshResponse, LogoutRequest, LogoutResponse,
     UserProfileUpdate, ChangePasswordRequest, PasswordChangeResponse,
     PrescriptionCreate, PrescriptionUpdate, PrescriptionSignRequest, PrescriptionResponse, PrescriptionListResponse,
     PrescriptionDeviceCreate, PrescriptionDeviceResponse, DeviceResponse,
@@ -47,7 +50,8 @@ from schemas import (
     InterventionDetailResponse
 )
 from auth import (
-    hash_password, verify_password, create_access_token, verify_token, TokenData, validate_jwt_secret
+    hash_password, verify_password, create_access_token, create_refresh_token, verify_token, verify_refresh_token,
+    TokenData, validate_jwt_secret, REFRESH_TOKEN_EXPIRATION_DAYS, JWT_EXPIRATION_HOURS
 )
 from voice_utils import (
     transcribe_audio, validate_medication, parse_prescription_text, structure_prescription_data
@@ -335,6 +339,87 @@ async def get_nurse(current_user: User = Depends(get_current_user)) -> User:
 
 
 # ============================================================================
+# REFRESH TOKEN HELPER FUNCTIONS
+# ============================================================================
+
+def store_refresh_token(db: Session, user_id: str, org_id: str, email: str, refresh_token: str, token_family: str) -> RefreshToken:
+    """Store refresh token in database for tracking and revocation"""
+    try:
+        # Decode token to get jti and expiration
+        from auth import JWT_SECRET, JWT_ALGORITHM
+        payload = jwt.decode(refresh_token, JWT_SECRET, algorithms=[JWT_ALGORITHM])  # nosec: need to decode for jti extraction
+        jti = payload.get("jti")
+        exp_timestamp = payload.get("exp")
+
+        expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) if exp_timestamp else \
+                    datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRATION_DAYS)
+
+        refresh_token_record = RefreshToken(
+            jti=jti,
+            user_id=user_id,
+            org_id=org_id,
+            token_family=token_family,
+            created_at=datetime.utcnow(),
+            expires_at=expires_at.replace(tzinfo=None),  # Store as naive datetime
+            last_used_at=datetime.utcnow(),
+            is_revoked=False
+        )
+        db.add(refresh_token_record)
+        db.commit()
+        return refresh_token_record
+    except Exception as e:
+        logger.error(f"Error storing refresh token: {e}")
+        db.rollback()
+        raise
+
+
+def get_valid_refresh_token(db: Session, jti: str, user_id: str, org_id: str) -> Optional[RefreshToken]:
+    """Get a valid (non-revoked, non-expired) refresh token"""
+    token_record = db.query(RefreshToken).filter(
+        RefreshToken.jti == jti,
+        RefreshToken.user_id == user_id,
+        RefreshToken.org_id == org_id,
+        RefreshToken.is_revoked == False,
+        RefreshToken.expires_at > datetime.utcnow()
+    ).first()
+
+    if token_record:
+        token_record.last_used_at = datetime.utcnow()
+        db.commit()
+
+    return token_record
+
+
+def revoke_refresh_token(db: Session, jti: str, user_id: str):
+    """Revoke a specific refresh token"""
+    token_record = db.query(RefreshToken).filter(
+        RefreshToken.jti == jti,
+        RefreshToken.user_id == user_id
+    ).first()
+
+    if token_record:
+        token_record.is_revoked = True
+        token_record.revoked_at = datetime.utcnow()
+        db.commit()
+        logger.info(f"Revoked refresh token for user {user_id}")
+
+
+def revoke_all_user_tokens(db: Session, user_id: str):
+    """Revoke all refresh tokens for a user (logout all devices)"""
+    token_records = db.query(RefreshToken).filter(
+        RefreshToken.user_id == user_id,
+        RefreshToken.is_revoked == False
+    ).all()
+
+    for token_record in token_records:
+        token_record.is_revoked = True
+        token_record.revoked_at = datetime.utcnow()
+
+    db.commit()
+    logger.info(f"Revoked all refresh tokens for user {user_id}")
+
+
+# ============================================================================
 # AUTHENTICATION ENDPOINTS
 # ============================================================================
 
@@ -376,11 +461,25 @@ async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
 
     logger.info(f"User registered: {user.email} ({user.role})")
 
-    # Create token
-    token = create_access_token(user.id, user.org_id, user.email, user.role.value)
+    # Create access token
+    access_token = create_access_token(user.id, user.org_id, user.email, user.role.value)
+
+    # Create refresh token with unique family ID for token rotation
+    token_family = str(uuid.uuid4())
+    refresh_token = create_refresh_token(user.id, user.org_id, user.email, token_family)
+
+    # Store refresh token in database
+    store_refresh_token(db, user.id, user.org_id, user.email, refresh_token, token_family)
+
+    # Calculate expiration times (in seconds)
+    access_token_expires_in = JWT_EXPIRATION_HOURS * 3600
+    refresh_token_expires_in = REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 3600
 
     return TokenResponse(
-        access_token=token,
+        access_token=access_token,
+        expires_in=access_token_expires_in,
+        refresh_token=refresh_token,
+        refresh_expires_in=refresh_token_expires_in,
         user={
             "id": user.id,
             "email": user.email,
@@ -416,17 +515,135 @@ async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
 
     logger.info(f"User logged in: {user.email}")
 
-    # Create token
-    token = create_access_token(user.id, user.org_id, user.email, user.role.value)
+    # Create access token
+    access_token = create_access_token(user.id, user.org_id, user.email, user.role.value)
+
+    # Create refresh token with unique family ID for token rotation
+    token_family = str(uuid.uuid4())
+    refresh_token = create_refresh_token(user.id, user.org_id, user.email, token_family)
+
+    # Store refresh token in database
+    store_refresh_token(db, user.id, user.org_id, user.email, refresh_token, token_family)
+
+    # Calculate expiration times (in seconds)
+    access_token_expires_in = JWT_EXPIRATION_HOURS * 3600
+    refresh_token_expires_in = REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 3600
 
     return TokenResponse(
-        access_token=token,
+        access_token=access_token,
+        expires_in=access_token_expires_in,
+        refresh_token=refresh_token,
+        refresh_expires_in=refresh_token_expires_in,
         user={
             "id": user.id,
             "email": user.email,
             "role": user.role.value,
             "org_id": user.org_id,
         }
+    )
+
+
+@app.post("/api/auth/refresh", response_model=TokenRefreshResponse)
+@limiter.limit(RateLimits.AUTH_REFRESH)
+async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    """Get new access token using refresh token (with token rotation)"""
+
+    # Verify refresh token signature
+    token_payload = verify_refresh_token(request.refresh_token)
+    if not token_payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    user_id = token_payload.get("user_id")
+    org_id = token_payload.get("org_id")
+    email = token_payload.get("email")
+    jti = token_payload.get("jti")
+    token_family = token_payload.get("token_family")
+
+    # Check if token exists in database and is not revoked
+    refresh_token_record = get_valid_refresh_token(db, jti, user_id, org_id)
+    if not refresh_token_record:
+        logger.warning(f"Refresh token not found or revoked for user {user_id}")
+        raise HTTPException(status_code=401, detail="Invalid or revoked refresh token")
+
+    # Get user from correct database
+    user = db.query(User).filter(
+        User.id == user_id,
+        User.org_id == org_id,
+        User.is_active == True
+    ).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    logger.info(f"Token refreshed for user {user.email}")
+
+    # Create new access token
+    access_token = create_access_token(user.id, user.org_id, user.email, user.role.value)
+
+    # Create new refresh token (token rotation) with same family
+    new_refresh_token = create_refresh_token(user.id, user.org_id, user.email, token_family)
+
+    # Store new refresh token in database
+    store_refresh_token(db, user.id, user.org_id, user.email, new_refresh_token, token_family)
+
+    # Calculate expiration times (in seconds)
+    from auth import JWT_EXPIRATION_HOURS
+    access_token_expires_in = JWT_EXPIRATION_HOURS * 3600
+    refresh_token_expires_in = REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 3600
+
+    return TokenRefreshResponse(
+        access_token=access_token,
+        expires_in=access_token_expires_in,
+        refresh_token=new_refresh_token,
+        refresh_expires_in=refresh_token_expires_in,
+        status="token_rotated"
+    )
+
+
+@app.post("/api/auth/logout", response_model=LogoutResponse)
+async def logout(
+    request: LogoutRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Logout user by revoking refresh token"""
+
+    # Verify refresh token and get jti
+    token_payload = verify_refresh_token(request.refresh_token)
+    if not token_payload:
+        # Token is invalid or expired - already unusable, return success
+        return LogoutResponse(
+            status="success",
+            message="Already logged out or token expired"
+        )
+
+    jti = token_payload.get("jti")
+
+    # Revoke the token
+    revoke_refresh_token(db, jti, current_user.id)
+
+    logger.info(f"User logged out: {current_user.email}")
+
+    return LogoutResponse(
+        status="success",
+        message="Successfully logged out"
+    )
+
+
+@app.post("/api/auth/logout-all")
+async def logout_all(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Logout user from all devices by revoking all refresh tokens"""
+
+    revoke_all_user_tokens(db, current_user.id)
+
+    logger.info(f"User logged out from all devices: {current_user.email}")
+
+    return LogoutResponse(
+        status="success",
+        message="Successfully logged out from all devices"
     )
 
 

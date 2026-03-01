@@ -434,3 +434,43 @@ class InterventionDocument(Base):
 
     # Relationships
     log = relationship("InterventionLog", back_populates="documents")
+
+
+class RefreshToken(Base):
+    """Refresh tokens for long-lived sessions"""
+    __tablename__ = "refresh_tokens"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    jti = Column(String(255), unique=True, nullable=False)  # JWT ID for tracking
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+    org_id = Column(String(36), ForeignKey("organizations.id"), nullable=False)
+
+    # Token family for rotation detection (detect token reuse attacks)
+    token_family = Column(String(36), nullable=False)  # Family ID for rotated tokens
+
+    # Token lifecycle
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # Expiration timestamp
+    revoked_at = Column(DateTime, nullable=True)  # When token was revoked
+    last_used_at = Column(DateTime, nullable=True)  # Last time this token was used
+    is_revoked = Column(Boolean, default=False)  # Quick flag for revocation check
+
+    # Relationships
+    user = relationship("User")
+    organization = relationship("Organization")
+
+
+class TokenBlacklist(Base):
+    """Blacklisted access tokens (optional - for centralized revocation)"""
+    __tablename__ = "token_blacklist"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    jti = Column(String(255), unique=True, nullable=False)  # JWT ID
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
+
+    # Blacklist lifecycle
+    blacklisted_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)  # Token expiration (cleanup trigger)
+
+    # Relationships
+    user = relationship("User")

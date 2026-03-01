@@ -34,6 +34,7 @@ async def rate_limit_error_handler(request: Request, exc: RateLimitExceeded) -> 
 LOGIN_LIMIT = "5/minute"  # 5 attempts per minute per IP
 REGISTER_LIMIT = "3/minute"  # 3 registrations per minute per IP
 PASSWORD_CHANGE_LIMIT = "5/hour"  # 5 attempts per hour per IP
+REFRESH_TOKEN_LIMIT = "30/minute"  # 30 refresh attempts per minute per IP (moderate - normal usage)
 
 # Chat/LLM endpoints - Moderate limits to prevent abuse
 CHAT_LIMIT = "20/minute"  # 20 messages per minute per user
@@ -61,6 +62,7 @@ class RateLimits:
     AUTH_LOGIN = LOGIN_LIMIT
     AUTH_REGISTER = REGISTER_LIMIT
     AUTH_PASSWORD = PASSWORD_CHANGE_LIMIT
+    AUTH_REFRESH = REFRESH_TOKEN_LIMIT
 
     # Chat & LLM (moderate - prevent free API abuse)
     CHAT_MESSAGE = CHAT_LIMIT
