@@ -2338,6 +2338,18 @@ async def create_patient(
         db.commit()
         db.refresh(patient)
 
+        # Helper function to normalize allergy data
+        def normalize_list(data):
+            if not data:
+                return None
+            parsed = json.loads(data)
+            if not parsed:
+                return None
+            # If items are dicts with 'name' key, extract names; otherwise return as-is
+            if parsed and isinstance(parsed[0], dict) and 'name' in parsed[0]:
+                return [item['name'] for item in parsed]
+            return parsed
+
         # Convert JSON fields back to lists for response
         patient_dict = {
             "id": patient.id,
@@ -2348,9 +2360,9 @@ async def create_patient(
             "phone": patient.phone,
             "email": patient.email,
             "address": patient.address,
-            "allergies": json.loads(patient.allergies) if patient.allergies else None,
-            "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
-            "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+            "allergies": normalize_list(patient.allergies),
+            "chronic_conditions": normalize_list(patient.chronic_conditions),
+            "current_medications": normalize_list(patient.current_medications),
             "medical_notes": patient.medical_notes,
             "created_at": patient.created_at
         }
@@ -2376,6 +2388,18 @@ async def get_patient(
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
+        # Helper function to normalize allergy data
+        def normalize_list(data):
+            if not data:
+                return None
+            parsed = json.loads(data)
+            if not parsed:
+                return None
+            # If items are dicts with 'name' key, extract names; otherwise return as-is
+            if parsed and isinstance(parsed[0], dict) and 'name' in parsed[0]:
+                return [item['name'] for item in parsed]
+            return parsed
+
         patient_dict = {
             "id": patient.id,
             "first_name": patient.first_name,
@@ -2385,9 +2409,9 @@ async def get_patient(
             "phone": patient.phone,
             "email": patient.email,
             "address": patient.address,
-            "allergies": json.loads(patient.allergies) if patient.allergies else None,
-            "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
-            "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+            "allergies": normalize_list(patient.allergies),
+            "chronic_conditions": normalize_list(patient.chronic_conditions),
+            "current_medications": normalize_list(patient.current_medications),
             "medical_notes": patient.medical_notes,
             "created_at": patient.created_at
         }
@@ -2460,6 +2484,18 @@ async def list_patients(
 
         result = []
         for patient in patients:
+            # Helper function to normalize allergy data
+            def normalize_list(data):
+                if not data:
+                    return None
+                parsed = json.loads(data)
+                if not parsed:
+                    return None
+                # If items are dicts with 'name' key, extract names; otherwise return as-is
+                if parsed and isinstance(parsed[0], dict) and 'name' in parsed[0]:
+                    return [item['name'] for item in parsed]
+                return parsed
+
             patient_dict = {
                 "id": patient.id,
                 "first_name": patient.first_name,
@@ -2469,9 +2505,9 @@ async def list_patients(
                 "phone": patient.phone,
                 "email": patient.email,
                 "address": patient.address,
-                "allergies": json.loads(patient.allergies) if patient.allergies else None,
-                "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
-                "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+                "allergies": normalize_list(patient.allergies),
+                "chronic_conditions": normalize_list(patient.chronic_conditions),
+                "current_medications": normalize_list(patient.current_medications),
                 "medical_notes": patient.medical_notes,
                 "created_at": patient.created_at
             }
@@ -2527,6 +2563,18 @@ async def update_patient(
         db.commit()
         db.refresh(patient)
 
+        # Helper function to normalize allergy data
+        def normalize_list(data):
+            if not data:
+                return None
+            parsed = json.loads(data)
+            if not parsed:
+                return None
+            # If items are dicts with 'name' key, extract names; otherwise return as-is
+            if parsed and isinstance(parsed[0], dict) and 'name' in parsed[0]:
+                return [item['name'] for item in parsed]
+            return parsed
+
         patient_dict = {
             "id": patient.id,
             "first_name": patient.first_name,
@@ -2536,9 +2584,9 @@ async def update_patient(
             "phone": patient.phone,
             "email": patient.email,
             "address": patient.address,
-            "allergies": json.loads(patient.allergies) if patient.allergies else None,
-            "chronic_conditions": json.loads(patient.chronic_conditions) if patient.chronic_conditions else None,
-            "current_medications": json.loads(patient.current_medications) if patient.current_medications else None,
+            "allergies": normalize_list(patient.allergies),
+            "chronic_conditions": normalize_list(patient.chronic_conditions),
+            "current_medications": normalize_list(patient.current_medications),
             "medical_notes": patient.medical_notes,
             "created_at": patient.created_at
         }
