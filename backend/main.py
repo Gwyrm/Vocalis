@@ -3,7 +3,7 @@ Vocalis Backend - Healthcare Device Delivery Platform
 Multi-user system with authentication, prescriptions, and LLM-powered assistance
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Form, status
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Form, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from slowapi.errors import RateLimitExceeded
@@ -28,7 +28,7 @@ from models import (
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
     Patient, Medication, MedicationInteraction, DrugAllergy, PrescriptionDevice,
     Intervention, InterventionLog, InterventionDocument,
-    RefreshToken, TokenBlacklist
+    RefreshToken, TokenBlacklist, PatientAccessLog
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
@@ -421,6 +421,28 @@ def revoke_all_user_tokens(db: Session, user_id: str):
 
     db.commit()
     logger.info(f"Revoked all refresh tokens for user {user_id}")
+
+
+# ============================================================================
+# PATIENT ACCESS LOGGING (HIPAA Compliance)
+# ============================================================================
+
+def log_patient_access(db: Session, user_id: str, org_id: str, patient_id: str, action: str, details: str = None):
+    """Log patient access for audit trail (HIPAA 164.312(b))"""
+    try:
+        access_log = PatientAccessLog(
+            org_id=org_id,
+            user_id=user_id,
+            patient_id=patient_id,
+            action=action,
+            details=details,
+            accessed_at=datetime.utcnow()
+        )
+        db.add(access_log)
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to log patient access: {e}")
+        # Don't fail the operation if logging fails, but log the error
 
 
 # ============================================================================
@@ -2138,8 +2160,8 @@ async def clear_queue_item(
 @app.post("/api/chat", response_model=ChatResponse)
 @limiter.limit(RateLimits.CHAT_MESSAGE)
 async def chat(
-    request: ChatRequest,
-    http_request: Request,
+    request: Request,
+    chat_request: ChatRequest,
     current_user: User = Depends(get_current_user)
 ):
     """Chat endpoint with LLM (authenticated users only)"""
@@ -2158,13 +2180,13 @@ async def chat(
             current_data = PrescriptionData(**session) if session else PrescriptionData()
 
             # Extract information from user message
-            current_data = await extract_data_from_message(request.message, current_data)
+            current_data = await extract_data_from_message(chat_request.message, current_data)
 
             # Save updated data to session
             session_data[session_key] = current_data.model_dump(exclude_none=True)
 
         # Generate response
-        response_text = await generate_response(request.message, current_data)
+        response_text = await generate_response(chat_request.message, current_data)
 
         return ChatResponse(
             response=response_text,
@@ -2185,8 +2207,8 @@ async def chat(
 @app.post("/api/generate-pdf")
 @limiter.limit(RateLimits.PDF_GENERATE)
 async def generate_pdf(
-    request: GeneratePDFRequest,
-    http_request: Request,
+    request: Request,
+    pdf_request: GeneratePDFRequest,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
@@ -2256,8 +2278,8 @@ Médecin: {current_user.full_name}
 
         # Signature (with validation)
         sig_temp_path = None
-        if request.signature_base64:
-            img_bytes = validate_signature_image(request.signature_base64)
+        if pdf_request.signature_base64:
+            img_bytes = validate_signature_image(pdf_request.signature_base64)
             if img_bytes:
                 try:
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp:
@@ -2299,14 +2321,16 @@ Médecin: {current_user.full_name}
 @app.post("/api/patients", response_model=PatientResponse)
 async def create_patient(
     request: PatientCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_doctor),  # ✅ Doctor only
     db: Session = Depends(get_db_for_request)
 ):
-    """Create a new patient"""
+    """Create a new patient (Doctor only)"""
     try:
         patient = Patient(
             id=str(uuid.uuid4()),
             org_id=current_user.org_id,
+            created_by=current_user.id,  # ✅ Track who created
+            updated_by=current_user.id,  # ✅ Track who updated
             first_name=request.first_name,
             last_name=request.last_name,
             date_of_birth=request.date_of_birth,
@@ -2322,6 +2346,9 @@ async def create_patient(
         db.add(patient)
         db.commit()
         db.refresh(patient)
+
+        # ✅ Log access for audit trail
+        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "create")
 
         # Convert JSON fields back to lists for response
         patient_dict = {
@@ -2355,11 +2382,15 @@ async def get_patient(
     try:
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at == None  # ✅ Exclude soft-deleted
         ).first()
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+        # ✅ Log access for audit trail
+        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "read")
 
         patient_dict = {
             "id": patient.id,
@@ -2395,11 +2426,15 @@ async def get_patient_prescriptions(
         # Verify patient exists and belongs to user's organization
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at == None  # ✅ Exclude soft-deleted
         ).first()
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+        # ✅ Log access for audit trail
+        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "read")
 
         # Get all prescriptions for this patient, ordered by creation date (newest first)
         prescriptions = db.query(Prescription).filter(
@@ -2437,9 +2472,12 @@ async def list_patients(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """List all patients for organization"""
+    """List all patients for organization (excludes soft-deleted)"""
     try:
-        patients = db.query(Patient).filter(Patient.org_id == current_user.org_id).all()
+        patients = db.query(Patient).filter(
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at == None  # ✅ Exclude soft-deleted
+        ).all()
 
         result = []
         for patient in patients:
@@ -2470,14 +2508,15 @@ async def list_patients(
 async def update_patient(
     patient_id: str,
     request: PatientUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_doctor),  # ✅ Doctor only
     db: Session = Depends(get_db_for_request)
 ):
-    """Update patient information"""
+    """Update patient information (Doctor only)"""
     try:
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at == None  # ✅ Exclude soft-deleted
         ).first()
 
         if not patient:
@@ -2507,8 +2546,12 @@ async def update_patient(
             patient.medical_notes = request.medical_notes
 
         patient.updated_at = datetime.utcnow()
+        patient.updated_by = current_user.id  # ✅ Track who updated
         db.commit()
         db.refresh(patient)
+
+        # ✅ Log access for audit trail
+        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "update")
 
         patient_dict = {
             "id": patient.id,
@@ -2536,21 +2579,27 @@ async def update_patient(
 @app.delete("/api/patients/{patient_id}")
 async def delete_patient(
     patient_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_doctor),  # ✅ Doctor only
     db: Session = Depends(get_db_for_request)
 ):
-    """Delete patient (soft delete via marking as archived)"""
+    """Delete patient - Soft delete for audit trail (Doctor only)"""
     try:
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id
+            Patient.org_id == current_user.org_id,
+            Patient.deleted_at == None  # ✅ Only delete if not already deleted
         ).first()
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        db.delete(patient)
+        # ✅ Soft delete - preserve data for audit trail
+        patient.deleted_at = datetime.utcnow()
+        patient.deleted_by = current_user.id
         db.commit()
+
+        # ✅ Log access for audit trail
+        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "delete")
 
         return {"message": "Patient deleted successfully"}
     except HTTPException:
@@ -2567,9 +2616,9 @@ async def delete_patient(
 @app.post("/api/voice/transcribe", response_model=TranscriptionResponse)
 @limiter.limit(RateLimits.VOICE_TRANSCRIBE)
 async def transcribe_voice(
+    request: Request,
     file: UploadFile = File(...),
     language: str = "fr",
-    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
