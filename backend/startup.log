@@ -1,0 +1,29 @@
+2026-03-01 18:50:20,635 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:50:20,635 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Will watch for changes in these directories: ['/Users/pierre/Projets/Vocalis/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     Started reloader process [2616] using WatchFiles
+2026-03-01 18:50:22,152 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:50:22,152 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:50:22,195 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:50:22,195 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2619]
+INFO:     Waiting for application startup.
+2026-03-01 18:50:22,213 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:50:22,213 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:50:22,215 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:50:22,215 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:50:22,244 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:50:22,286 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:50:27,180 - vocalis-backend - INFO - Created default organization: ba71739f-c5e0-46cc-9800-df837e927b41
+2026-03-01 18:50:27,209 - vocalis-backend - INFO - User registered: test@example.com (UserRole.DOCTOR)
+INFO:     127.0.0.1:49636 - "POST /api/auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49638 - "POST /api/patients HTTP/1.1" 200 OK
+2026-03-01 18:50:27,279 - watchfiles.main - INFO - 2 changes detected
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:50:27,419 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2619]
+INFO:     Stopping reloader process [2616]

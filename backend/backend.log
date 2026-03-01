@@ -1,0 +1,386 @@
+2026-03-01 18:11:45,475 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:11:45,475 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Will watch for changes in these directories: ['/Users/pierre/Projets/Vocalis/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
+INFO:     Started reloader process [2130] using WatchFiles
+2026-03-01 18:11:46,980 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:11:46,980 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:11:47,056 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:11:47,056 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2134]
+INFO:     Waiting for application startup.
+2026-03-01 18:11:47,075 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:11:47,075 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:11:47,082 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:11:47,082 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:11:47,133 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:11:47,186 - watchfiles.main - INFO - 7 changes detected
+INFO:     127.0.0.1:49401 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49404 - "POST /api/auth/register HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/miniconda3/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/site-packages/fastapi/applications.py", line 1134, in __call__
+    await super().__call__(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/middleware/cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/miniconda3/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 125, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/opt/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/opt/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 111, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 391, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/opt/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 290, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/site-packages/slowapi/extension.py", line 725, in async_wrapper
+    raise Exception(
+        "parameter `request` must be an instance of starlette.requests.Request"
+    )
+Exception: parameter `request` must be an instance of starlette.requests.Request
+2026-03-01 18:11:57,094 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:11:57,458 - watchfiles.main - INFO - 2 changes detected
+INFO:     127.0.0.1:49406 - "POST /api/auth/register HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:49408 - "POST /api/auth/register HTTP/1.1" 422 Unprocessable Content
+2026-03-01 18:12:29,509 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_patient_rights_simple.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:12:29,686 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2134]
+2026-03-01 18:12:30,080 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:12:31,184 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:12:31,184 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:12:31,217 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:12:31,217 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2161]
+INFO:     Waiting for application startup.
+2026-03-01 18:12:31,235 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:12:31,235 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:12:31,237 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:12:31,237 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:12:31,266 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:12:35,754 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_patient_rights_simple.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:12:35,914 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2161]
+2026-03-01 18:12:37,413 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:12:37,413 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:12:37,447 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:12:37,447 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2164]
+INFO:     Waiting for application startup.
+2026-03-01 18:12:37,466 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:12:37,466 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:12:37,468 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:12:37,468 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:12:37,496 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:12:38,373 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:12:38,739 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:12:46,166 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_patient_rights_simple.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:12:46,290 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2164]
+2026-03-01 18:12:47,777 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:12:47,777 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:12:47,811 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:12:47,811 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2169]
+INFO:     Waiting for application startup.
+2026-03-01 18:12:47,830 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:12:47,830 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:12:47,832 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:12:47,832 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:12:47,859 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:12:49,275 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:12:49,696 - watchfiles.main - INFO - 5 changes detected
+2026-03-01 18:12:52,717 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:12:53,082 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:12:53,444 - watchfiles.main - INFO - 5 changes detected
+2026-03-01 18:12:56,685 - watchfiles.main - INFO - 1 change detected
+2026-03-01 18:12:59,669 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_patient_rights_simple.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:12:59,781 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2169]
+2026-03-01 18:13:01,288 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:13:01,288 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:13:01,321 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:13:01,321 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2185]
+INFO:     Waiting for application startup.
+2026-03-01 18:13:01,339 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:13:01,339 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:13:01,349 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:13:01,349 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:13:01,377 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:13:01,419 - watchfiles.main - INFO - 4 changes detected
+2026-03-01 18:13:02,005 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:13:02,370 - watchfiles.main - INFO - 5 changes detected
+2026-03-01 18:38:45,755 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'models.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:38:45,938 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2185]
+2026-03-01 18:38:46,393 - watchfiles.main - INFO - 4 changes detected
+2026-03-01 18:38:47,468 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:38:47,468 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:38:47,502 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:38:47,502 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2373]
+INFO:     Waiting for application startup.
+2026-03-01 18:38:47,520 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:38:47,520 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:38:47,522 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:38:47,522 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:38:47,549 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:38:48,442 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'models.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:38:48,562 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2373]
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from multiprocessing.spawn import spawn_main; spawn_main(tracker_fd=5, pipe_handle=7)
+                                                  ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/multiprocessing/spawn.py", line 122, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "/opt/miniconda3/lib/python3.13/multiprocessing/spawn.py", line 131, in _main
+    prepare(preparation_data)
+    ~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/multiprocessing/spawn.py", line 246, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/multiprocessing/spawn.py", line 297, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+                                  run_name="__mp_main__")
+  File "<frozen runpy>", line 287, in run_path
+  File "<frozen runpy>", line 98, in _run_module_code
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/pierre/Projets/Vocalis/backend/main.py", line 26, in <module>
+    from models import (
+    ...<5 lines>...
+    )
+ImportError: cannot import name 'PatientAccessLog' from 'models' (/Users/pierre/Projets/Vocalis/backend/models.py)
+2026-03-01 18:38:49,008 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:38:53,489 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+2026-03-01 18:38:54,993 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:38:54,994 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:38:55,035 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:38:55,035 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2379]
+INFO:     Waiting for application startup.
+2026-03-01 18:38:55,053 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:38:55,053 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:38:55,055 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:38:55,055 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:38:55,083 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:38:55,109 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:38:58,874 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:38:59,027 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2379]
+2026-03-01 18:39:00,533 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:00,533 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:00,574 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:00,575 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2384]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:00,593 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:00,593 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:00,595 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:00,595 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:00,623 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:00,674 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:07,176 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:39:07,293 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2384]
+2026-03-01 18:39:08,786 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:08,786 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:08,827 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:08,827 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2385]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:08,846 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:08,846 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:08,847 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:08,847 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:08,876 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:08,925 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:13,288 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:39:13,425 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2385]
+2026-03-01 18:39:14,920 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:14,920 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:14,961 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:14,961 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2386]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:14,979 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:14,979 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:14,981 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:14,981 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:15,009 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:15,063 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:16,998 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:39:17,132 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2386]
+2026-03-01 18:39:18,632 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:18,632 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:18,673 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:18,674 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2387]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:18,692 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:18,692 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:18,693 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:18,693 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:18,722 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:18,783 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:20,395 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:39:20,542 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2387]
+2026-03-01 18:39:22,042 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:22,042 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:22,087 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:22,087 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2388]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:22,105 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:22,105 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:22,107 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:22,107 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:22,135 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:22,183 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:27,891 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:39:27,998 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2388]
+2026-03-01 18:39:29,509 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:29,509 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:29,551 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:29,551 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2391]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:29,569 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:29,569 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:29,571 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:29,571 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:29,600 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:29,627 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:33,671 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:39:33,844 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2391]
+2026-03-01 18:39:35,372 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:35,372 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:39:35,414 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:39:35,414 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2393]
+INFO:     Waiting for application startup.
+2026-03-01 18:39:35,432 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:39:35,432 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:39:35,434 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:39:35,434 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:39:35,463 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:39:35,481 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:39:40,684 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:41:13,302 - watchfiles.main - INFO - 1 change detected
+2026-03-01 18:41:15,028 - watchfiles.main - INFO - 1 change detected
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:41:20,160 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2393]
+INFO:     Stopping reloader process [2130]

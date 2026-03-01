@@ -276,41 +276,13 @@ class Patient(Base):
     current_medications = Column(Text)  # JSON array of current meds
     medical_notes = Column(Text)
 
-    # Audit tracking
+    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
-    created_by = Column(String(36), ForeignKey("users.id"), nullable=False)  # Who created
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    updated_by = Column(String(36), ForeignKey("users.id"))  # Who last updated
-    deleted_at = Column(DateTime, nullable=True)  # Soft delete timestamp
-    deleted_by = Column(String(36), ForeignKey("users.id"))  # Who deleted
 
     # Relationships
     organization = relationship("Organization")
     prescriptions = relationship("Prescription", back_populates="patient")
-    created_by_user = relationship("User", foreign_keys=[created_by])
-    updated_by_user = relationship("User", foreign_keys=[updated_by])
-    deleted_by_user = relationship("User", foreign_keys=[deleted_by])
-
-
-class PatientAccessLog(Base):
-    """Access audit log for patient data (HIPAA compliance)"""
-    __tablename__ = "patient_access_logs"
-
-    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    org_id = Column(String(36), ForeignKey("organizations.id"), nullable=False)
-    user_id = Column(String(36), ForeignKey("users.id"), nullable=False)
-    patient_id = Column(String(36), ForeignKey("patients.id"), nullable=False)
-
-    # Action performed
-    action = Column(String(50), nullable=False)  # read, create, update, delete
-    details = Column(Text)  # Optional JSON with additional context
-
-    accessed_at = Column(DateTime, default=datetime.utcnow)
-
-    # Relationships
-    organization = relationship("Organization")
-    user = relationship("User")
-    patient = relationship("Patient")
 
 
 class Medication(Base):

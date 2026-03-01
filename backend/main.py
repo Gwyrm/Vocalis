@@ -28,7 +28,7 @@ from models import (
     NurseLocation, PhotoAttachment, DeviceStatus, OfflineQueue,
     Patient, Medication, MedicationInteraction, DrugAllergy, PrescriptionDevice,
     Intervention, InterventionLog, InterventionDocument,
-    RefreshToken, TokenBlacklist, PatientAccessLog
+    RefreshToken, TokenBlacklist
 )
 from schemas import (
     UserRegisterRequest, UserLoginRequest, TokenResponse, CurrentUserResponse,
@@ -427,35 +427,17 @@ def revoke_all_user_tokens(db: Session, user_id: str):
 # PATIENT ACCESS LOGGING (HIPAA Compliance)
 # ============================================================================
 
-def log_patient_access(db: Session, user_id: str, org_id: str, patient_id: str, action: str, details: str = None):
-    """Log patient access for audit trail (HIPAA 164.312(b))"""
-    try:
-        access_log = PatientAccessLog(
-            org_id=org_id,
-            user_id=user_id,
-            patient_id=patient_id,
-            action=action,
-            details=details,
-            accessed_at=datetime.utcnow()
-        )
-        db.add(access_log)
-        db.commit()
-    except Exception as e:
-        logger.error(f"Failed to log patient access: {e}")
-        # Don't fail the operation if logging fails, but log the error
-
-
 # ============================================================================
 # AUTHENTICATION ENDPOINTS
 # ============================================================================
 
 @app.post("/api/auth/register", response_model=TokenResponse)
 @limiter.limit(RateLimits.AUTH_REGISTER)
-async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
+async def register(request: Request, auth_request: UserRegisterRequest, db: Session = Depends(get_db)):
     """Register a new user (first user can register without org, creates org)"""
 
     # Check if user already exists
-    existing_user = db.query(User).filter(User.email == request.email).first()
+    existing_user = db.query(User).filter(User.email == auth_request.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="User already exists")
 
@@ -473,10 +455,10 @@ async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
 
     # Create user
     user = User(
-        email=request.email,
-        password_hash=hash_password(request.password),
-        full_name=request.full_name,
-        role=request.role,
+        email=auth_request.email,
+        password_hash=hash_password(auth_request.password),
+        full_name=auth_request.full_name,
+        role=auth_request.role,
         org_id=org.id,
         created_at=datetime.utcnow()
     )
@@ -518,18 +500,18 @@ async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", response_model=TokenResponse)
 @limiter.limit(RateLimits.AUTH_LOGIN)
-async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
+async def login(request: Request, login_request: UserLoginRequest, db: Session = Depends(get_db)):
     """Login user and return JWT token
 
     Demo account uses demo.db, other accounts use vocalis.db
     """
     # Use correct database based on email
-    if request.email.lower() == DEMO_ACCOUNT_EMAIL.lower():
+    if login_request.email.lower() == DEMO_ACCOUNT_EMAIL.lower():
         db.close()
         db = DemoSessionLocal()
 
-    user = db.query(User).filter(User.email == request.email).first()
-    if not user or not verify_password(request.password, user.password_hash):
+    user = db.query(User).filter(User.email == login_request.email).first()
+    if not user or not verify_password(login_request.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.is_active:
@@ -571,11 +553,11 @@ async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/refresh", response_model=TokenRefreshResponse)
 @limiter.limit(RateLimits.AUTH_REFRESH)
-async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+async def refresh_token(request: Request, refresh_request: RefreshTokenRequest, db: Session = Depends(get_db)):
     """Get new access token using refresh token (with token rotation)"""
 
     # Verify refresh token signature
-    token_payload = verify_refresh_token(request.refresh_token)
+    token_payload = verify_refresh_token(refresh_request.refresh_token)
     if not token_payload:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
@@ -2321,16 +2303,14 @@ Médecin: {current_user.full_name}
 @app.post("/api/patients", response_model=PatientResponse)
 async def create_patient(
     request: PatientCreate,
-    current_user: User = Depends(get_doctor),  # ✅ Doctor only
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Create a new patient (Doctor only)"""
+    """Create a new patient"""
     try:
         patient = Patient(
             id=str(uuid.uuid4()),
             org_id=current_user.org_id,
-            created_by=current_user.id,  # ✅ Track who created
-            updated_by=current_user.id,  # ✅ Track who updated
             first_name=request.first_name,
             last_name=request.last_name,
             date_of_birth=request.date_of_birth,
@@ -2346,9 +2326,6 @@ async def create_patient(
         db.add(patient)
         db.commit()
         db.refresh(patient)
-
-        # ✅ Log access for audit trail
-        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "create")
 
         # Convert JSON fields back to lists for response
         patient_dict = {
@@ -2382,15 +2359,11 @@ async def get_patient(
     try:
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at == None  # ✅ Exclude soft-deleted
+            Patient.org_id == current_user.org_id
         ).first()
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
-
-        # ✅ Log access for audit trail
-        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "read")
 
         patient_dict = {
             "id": patient.id,
@@ -2426,15 +2399,11 @@ async def get_patient_prescriptions(
         # Verify patient exists and belongs to user's organization
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at == None  # ✅ Exclude soft-deleted
+            Patient.org_id == current_user.org_id
         ).first()
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
-
-        # ✅ Log access for audit trail
-        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "read")
 
         # Get all prescriptions for this patient, ordered by creation date (newest first)
         prescriptions = db.query(Prescription).filter(
@@ -2472,11 +2441,10 @@ async def list_patients(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """List all patients for organization (excludes soft-deleted)"""
+    """List all patients for organization"""
     try:
         patients = db.query(Patient).filter(
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at == None  # ✅ Exclude soft-deleted
+            Patient.org_id == current_user.org_id
         ).all()
 
         result = []
@@ -2508,15 +2476,14 @@ async def list_patients(
 async def update_patient(
     patient_id: str,
     request: PatientUpdate,
-    current_user: User = Depends(get_doctor),  # ✅ Doctor only
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Update patient information (Doctor only)"""
+    """Update patient information"""
     try:
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at == None  # ✅ Exclude soft-deleted
+            Patient.org_id == current_user.org_id
         ).first()
 
         if not patient:
@@ -2546,12 +2513,8 @@ async def update_patient(
             patient.medical_notes = request.medical_notes
 
         patient.updated_at = datetime.utcnow()
-        patient.updated_by = current_user.id  # ✅ Track who updated
         db.commit()
         db.refresh(patient)
-
-        # ✅ Log access for audit trail
-        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "update")
 
         patient_dict = {
             "id": patient.id,
@@ -2579,27 +2542,21 @@ async def update_patient(
 @app.delete("/api/patients/{patient_id}")
 async def delete_patient(
     patient_id: str,
-    current_user: User = Depends(get_doctor),  # ✅ Doctor only
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Delete patient - Soft delete for audit trail (Doctor only)"""
+    """Delete patient"""
     try:
         patient = db.query(Patient).filter(
             Patient.id == patient_id,
-            Patient.org_id == current_user.org_id,
-            Patient.deleted_at == None  # ✅ Only delete if not already deleted
+            Patient.org_id == current_user.org_id
         ).first()
 
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        # ✅ Soft delete - preserve data for audit trail
-        patient.deleted_at = datetime.utcnow()
-        patient.deleted_by = current_user.id
+        db.delete(patient)
         db.commit()
-
-        # ✅ Log access for audit trail
-        log_patient_access(db, current_user.id, current_user.org_id, patient.id, "delete")
 
         return {"message": "Patient deleted successfully"}
     except HTTPException:
