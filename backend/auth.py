@@ -10,9 +10,11 @@ import logging
 logger = logging.getLogger("vocalis-backend")
 
 # Configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
+_DEFAULT_JWT_SECRET = "your-secret-key-change-in-production"
+JWT_SECRET = os.getenv("JWT_SECRET", _DEFAULT_JWT_SECRET)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 
 # Password hashing - use argon2 for secure password storage (more reliable than bcrypt)
 # Falls back to pbkdf2 if argon2 unavailable
@@ -76,3 +78,39 @@ def verify_token(token: str) -> Optional[TokenData]:
     except JWTError as e:
         logger.warning(f"Token verification failed: {e}")
         return None
+
+
+def validate_jwt_secret() -> bool:
+    """
+    Validate JWT secret configuration for security.
+
+    Returns:
+        True if secret is valid for current environment
+
+    Raises:
+        ValueError if JWT secret is insecure in production
+    """
+    is_using_default = JWT_SECRET == _DEFAULT_JWT_SECRET
+    is_production = ENVIRONMENT in ["production", "prod"]
+
+    if is_production and is_using_default:
+        error_msg = (
+            "SECURITY ERROR: JWT_SECRET environment variable not set in production! "
+            "This uses an insecure default secret that is visible in code. "
+            "Generate a secure secret and set the JWT_SECRET environment variable. "
+            "\n\nGenerate a secure secret with: "
+            "python -c \"import secrets; print(secrets.token_urlsafe(32))\""
+        )
+        logger.critical(error_msg)
+        raise ValueError(error_msg)
+
+    if is_using_default:
+        logger.warning(
+            "Using default JWT secret (development mode). "
+            "This is INSECURE for production. "
+            "Set JWT_SECRET environment variable for production deployments."
+        )
+    else:
+        logger.info("JWT secret configured from environment variable (secure)")
+
+    return True

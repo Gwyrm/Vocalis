@@ -89,8 +89,30 @@ Default secret is visible in code:
 JWT_SECRET = os.getenv("JWT_SECRET", "your-secret-key-change-in-production")
 ```
 
-### Solution
-Ensure `JWT_SECRET` environment variable is set in production.
+### Solution Implemented
+
+**Environment-based validation** with startup checks:
+
+1. **Development mode** (default)
+   - Uses default secret if JWT_SECRET not set
+   - Logs warning about insecure configuration
+   - Allows development without setup
+
+2. **Production mode** (ENVIRONMENT=production)
+   - **REQUIRES** JWT_SECRET environment variable
+   - Fails at startup if not set
+   - Prevents accidental deployment with weak secret
+
+### Configuration
+
+**Set environment:**
+```bash
+# Development (default)
+export ENVIRONMENT=development
+
+# Production (requires JWT_SECRET)
+export ENVIRONMENT=production
+```
 
 **Generate a secure secret:**
 ```bash
@@ -102,17 +124,90 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 dK_yZwQpL8nM3vXjF9qRsT2uWpZ-kL_cVxY=
 ```
 
-**Set in production:**
+**Set JWT secret in development:**
 ```bash
 export JWT_SECRET="dK_yZwQpL8nM3vXjF9qRsT2uWpZ-kL_cVxY="
+python main.py
+```
+
+**Set JWT secret in production:**
+```bash
+export ENVIRONMENT=production
+export JWT_SECRET="dK_yZwQpL8nM3vXjF9qRsT2uWpZ-kL_cVxY="
+python main.py
 ```
 
 **In Docker:**
 ```dockerfile
-ENV JWT_SECRET="dK_yZwQpL8nM3vXjF9qRsT2uWpZ-kL_cVxY="
+# Build
+FROM python:3.11
+WORKDIR /app
+COPY . .
+RUN pip install -r requirements.txt
+
+# Run with secrets (from compose or env)
+CMD ["python", "main.py"]
 ```
 
-**Note:** The default value is still allowed for development but should be changed in production.
+**Docker Compose example:**
+```yaml
+services:
+  vocalis-backend:
+    image: vocalis:latest
+    environment:
+      ENVIRONMENT: production
+      JWT_SECRET: ${JWT_SECRET}  # From .env or host
+      CORS_ORIGINS: https://app.example.com
+      DATABASE_URL: postgresql://...
+    ports:
+      - "8080:8080"
+```
+
+### Startup Validation
+
+The system validates JWT configuration on startup:
+
+**Development mode (logs warning):**
+```
+WARNING:vocalis-backend:Using default JWT secret (development mode).
+This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+```
+
+**Production mode with missing secret (FAILS):**
+```
+CRITICAL:vocalis-backend:SECURITY ERROR: JWT_SECRET environment variable not set in production!
+This uses an insecure default secret that is visible in code.
+Generate a secure secret and set the JWT_SECRET environment variable.
+
+Traceback:
+  ValueError: SECURITY ERROR: JWT_SECRET environment variable not set in production!
+```
+
+**Production mode with secret set (SUCCESS):**
+```
+INFO:vocalis-backend:JWT secret configured from environment variable (secure)
+```
+
+### Key Features
+
+✅ **Automatic validation at startup**
+- Checks environment (development/production)
+- Validates secret strength
+- Fails fast on misconfiguration
+
+✅ **Prevents accidental insecurity**
+- Production deployment without secret fails
+- No silent failures
+- Clear error messages
+
+✅ **Development-friendly**
+- No secret required for local testing
+- Warnings to remind about production setup
+
+✅ **Environment-aware**
+- Different behavior based on ENVIRONMENT variable
+- Easy multi-environment deployment
+- Clear separation of concerns
 
 ---
 

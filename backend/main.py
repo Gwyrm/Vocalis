@@ -46,7 +46,7 @@ from schemas import (
     InterventionDetailResponse
 )
 from auth import (
-    hash_password, verify_password, create_access_token, verify_token, TokenData
+    hash_password, verify_password, create_access_token, verify_token, TokenData, validate_jwt_secret
 )
 from voice_utils import (
     transcribe_audio, validate_medication, parse_prescription_text, structure_prescription_data
@@ -138,6 +138,13 @@ def deduplicate_items(items: list) -> list:
 async def lifespan(app: FastAPI):
     """Initialize on startup, cleanup on shutdown"""
     global ollama_available
+
+    # Validate JWT secret configuration
+    try:
+        validate_jwt_secret()
+    except ValueError as e:
+        logger.critical(f"JWT validation failed: {e}")
+        raise
 
     # Initialize database tables
     logger.info("Initializing databases...")
