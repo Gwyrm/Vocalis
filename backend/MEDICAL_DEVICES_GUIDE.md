@@ -62,8 +62,9 @@ Vocalis allows doctors to prescribe medical equipment and devices to patients, j
 ### Create Device in Catalog
 
 ```bash
+# Can be created by doctor OR nurse
 curl -X POST http://localhost:8080/api/devices \
-  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "name": "Mobility Walker - 4 Wheel",
@@ -363,12 +364,15 @@ curl -X GET http://localhost:8080/api/devices/{device_id}/analytics \
 
 | Operation | Doctor | Nurse |
 |-----------|--------|-------|
-| Create device | ✅ | ❌ |
+| Create device | ✅ | ✅ |
 | List devices | ✅ | ✅ |
-| Update status | ✅ | ❌ |
+| Update status | ✅ | ✅ |
 | View analytics | ✅ | ✅ |
-| Add to Rx | ✅ | ❌ |
-| Remove from Rx | ✅ | ❌ |
+| Create prescription | ✅ | ✅ |
+| Edit prescription | ✅ (draft) | ✅ (draft) |
+| Add device to Rx | ✅ | ✅ |
+| Remove device from Rx | ✅ | ✅ |
+| **Sign prescription** | **✅ ONLY** | **❌** |
 
 ## Integration with Workflow
 

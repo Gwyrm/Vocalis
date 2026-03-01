@@ -133,9 +133,9 @@ Authorization: Bearer {token}
 
 ### Prescriptions
 ```bash
-# Create
+# Create (Doctor or Nurse)
 POST /api/prescriptions
-Authorization: Bearer {doctor_token}
+Authorization: Bearer {token}
 
 # List
 GET /api/prescriptions
@@ -145,7 +145,11 @@ Authorization: Bearer {token}
 GET /api/prescriptions/{prescription_id}
 Authorization: Bearer {token}
 
-# Sign (DOCTOR ONLY)
+# Update (draft only, Doctor or Nurse)
+PUT /api/prescriptions/{prescription_id}
+Authorization: Bearer {token}
+
+# Sign (DOCTOR ONLY - Critical Operation)
 PUT /api/prescriptions/{prescription_id}/sign
 Authorization: Bearer {doctor_token}
 ```

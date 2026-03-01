@@ -242,14 +242,16 @@ curl -X DELETE http://localhost:8080/api/prescriptions/{prescription_id}/devices
 
 | Operation | Doctor | Nurse | Public |
 |-----------|--------|-------|--------|
-| Create prescription | ✅ | ❌ | ❌ |
-| Add devices to Rx | ✅ | ❌ | ❌ |
+| Create prescription | ✅ | ✅ | ❌ |
+| Edit prescription | ✅ (draft) | ✅ (draft) | ❌ |
+| Add devices to Rx | ✅ | ✅ | ❌ |
 | Read prescription | ✅ | ✅ | ❌ |
-| Update prescription | ✅ | ❌ | ❌ |
-| Sign prescription | ✅ ONLY | ❌ | ❌ |
-| Manage devices | ✅ | ❌ | ❌ |
+| **Sign prescription** | **✅ ONLY** | **❌** | **❌** |
+| Manage devices | ✅ | ✅ | ❌ |
 | Track device status | ✅ | ✅ | ❌ |
-| Delete | ✅ | ❌ | ❌ |
+| Delete | ✅ | ✅ | ❌ |
+
+**Important Note:** Only **doctors can sign prescriptions**. Nurses can create, edit, and manage prescriptions up until signing.
 
 ### 4. Prescription Signature
 
@@ -556,13 +558,13 @@ python test_v0_workflow.py
 ### Prescription Management (7 endpoints)
 | Endpoint | Method | Auth | Purpose |
 |----------|--------|------|---------|
-| `/api/prescriptions` | POST | Doctor | Create prescription (Rx for meds/devices) |
+| `/api/prescriptions` | POST | Bearer | Create prescription (Doctor or Nurse) |
 | `/api/prescriptions` | GET | Bearer | List prescriptions |
 | `/api/prescriptions/{id}` | GET | Bearer | Get prescription details |
-| `/api/prescriptions/{id}` | PUT | Doctor | Update prescription |
-| `/api/prescriptions/{id}/sign` | PUT | Doctor | **Sign prescription (doctor-only)** |
-| `/api/prescriptions/{id}/devices` | POST | Doctor | **Add device to prescription** |
-| `/api/prescriptions/{id}/devices` | GET | Bearer | **Get devices on prescription** |
+| `/api/prescriptions/{id}` | PUT | Bearer | Update prescription (draft only) |
+| `/api/prescriptions/{id}/sign` | PUT | **Doctor** | **Sign prescription (DOCTOR ONLY)** |
+| `/api/prescriptions/{id}/devices` | POST | Bearer | Add device to prescription |
+| `/api/prescriptions/{id}/devices` | GET | Bearer | Get devices on prescription |
 
 ### Medical Device Management (4 endpoints)
 | Endpoint | Method | Auth | Purpose |
