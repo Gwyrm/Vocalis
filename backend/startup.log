@@ -1,29 +1,115 @@
-2026-03-01 18:50:20,635 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
-2026-03-01 18:50:20,635 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:53:30,389 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:53:30,389 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
 INFO:     Will watch for changes in these directories: ['/Users/pierre/Projets/Vocalis/backend']
 INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)
-INFO:     Started reloader process [2616] using WatchFiles
-2026-03-01 18:50:22,152 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
-2026-03-01 18:50:22,152 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
-2026-03-01 18:50:22,195 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
-2026-03-01 18:50:22,195 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
-INFO:     Started server process [2619]
+INFO:     Started reloader process [2722] using WatchFiles
+2026-03-01 18:53:31,906 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:53:31,906 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:53:31,940 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:53:31,940 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2725]
 INFO:     Waiting for application startup.
-2026-03-01 18:50:22,213 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
-2026-03-01 18:50:22,213 - vocalis-backend - INFO - Initializing databases...
-2026-03-01 18:50:22,215 - vocalis-backend - INFO - Databases initialized
-2026-03-01 18:50:22,215 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
-2026-03-01 18:50:22,244 - vocalis-backend - INFO - Ollama is available!
+2026-03-01 18:53:31,959 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:53:31,959 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:53:31,961 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:53:31,961 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:53:31,990 - vocalis-backend - INFO - Ollama is available!
 INFO:     Application startup complete.
-2026-03-01 18:50:22,286 - watchfiles.main - INFO - 3 changes detected
-2026-03-01 18:50:27,180 - vocalis-backend - INFO - Created default organization: ba71739f-c5e0-46cc-9800-df837e927b41
-2026-03-01 18:50:27,209 - vocalis-backend - INFO - User registered: test@example.com (UserRole.DOCTOR)
-INFO:     127.0.0.1:49636 - "POST /api/auth/register HTTP/1.1" 200 OK
-INFO:     127.0.0.1:49638 - "POST /api/patients HTTP/1.1" 200 OK
-2026-03-01 18:50:27,279 - watchfiles.main - INFO - 2 changes detected
+INFO:     127.0.0.1:49669 - "GET /api/health HTTP/1.1" 200 OK
+2026-03-01 18:53:37,025 - vocalis-backend - INFO - User registered: doctor_v0_1772387616@example.com (UserRole.DOCTOR)
+INFO:     127.0.0.1:49670 - "POST /api/auth/register HTTP/1.1" 200 OK
+2026-03-01 18:53:37,055 - vocalis-backend - INFO - User registered: nurse_v0_1772387616@example.com (UserRole.NURSE)
+INFO:     127.0.0.1:49671 - "POST /api/auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "POST /api/patients HTTP/1.1" 200 OK
+2026-03-01 18:53:37,062 - vocalis-backend - INFO - Prescription created: 8251b661-ccdd-4c63-8f3c-6accd7eeffb9 by doctor_v0_1772387616@example.com
+INFO:     127.0.0.1:49673 - "POST /api/prescriptions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49674 - "POST /api/prescriptions/8251b661-ccdd-4c63-8f3c-6accd7eeffb9/sign HTTP/1.1" 405 Method Not Allowed
+2026-03-01 18:53:37,136 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:54:02,313 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_v0_workflow.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
-2026-03-01 18:50:27,419 - vocalis-backend - INFO - Shutting down...
+2026-03-01 18:54:02,422 - vocalis-backend - INFO - Shutting down...
 INFO:     Application shutdown complete.
-INFO:     Finished server process [2619]
-INFO:     Stopping reloader process [2616]
+INFO:     Finished server process [2725]
+2026-03-01 18:54:02,823 - watchfiles.main - INFO - 1 change detected
+2026-03-01 18:54:03,958 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:54:03,959 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:54:03,992 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:54:03,992 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2732]
+INFO:     Waiting for application startup.
+2026-03-01 18:54:04,010 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:54:04,010 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:54:04,012 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:54:04,012 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:54:04,040 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+2026-03-01 18:54:04,386 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_v0_workflow.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:54:04,546 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2732]
+2026-03-01 18:54:06,054 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:54:06,054 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:54:06,089 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:54:06,089 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2733]
+INFO:     Waiting for application startup.
+2026-03-01 18:54:06,108 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:54:06,109 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:54:06,110 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:54:06,110 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:54:06,139 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+INFO:     127.0.0.1:49680 - "GET /api/health HTTP/1.1" 200 OK
+2026-03-01 18:54:08,949 - vocalis-backend - INFO - User registered: doctor_v0_1772387648@example.com (UserRole.DOCTOR)
+INFO:     127.0.0.1:49681 - "POST /api/auth/register HTTP/1.1" 200 OK
+2026-03-01 18:54:08,978 - vocalis-backend - INFO - User registered: nurse_v0_1772387648@example.com (UserRole.NURSE)
+INFO:     127.0.0.1:49683 - "POST /api/auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49684 - "POST /api/patients HTTP/1.1" 200 OK
+2026-03-01 18:54:08,986 - vocalis-backend - INFO - Prescription created: a3ce84b2-aecc-4d86-ad56-fe880599c6f0 by doctor_v0_1772387648@example.com
+INFO:     127.0.0.1:49685 - "POST /api/prescriptions HTTP/1.1" 200 OK
+2026-03-01 18:54:08,989 - vocalis-backend - INFO - Prescription confirmed by doctor doctor_v0_1772387648@example.com: a3ce84b2-aecc-4d86-ad56-fe880599c6f0
+INFO:     127.0.0.1:49686 - "PUT /api/prescriptions/a3ce84b2-aecc-4d86-ad56-fe880599c6f0/sign HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49687 - "PUT /api/prescriptions/a3ce84b2-aecc-4d86-ad56-fe880599c6f0/sign HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:49688 - "POST /api/interventions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49689 - "POST /api/interventions/47c13abe-fb4d-439a-ae3a-3c75f05e375a/logs HTTP/1.1" 405 Method Not Allowed
+2026-03-01 18:54:09,064 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:54:15,723 - watchfiles.main - INFO - 3 changes detected
+WARNING:  WatchFiles detected changes in 'test_v0_workflow.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:54:15,852 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2733]
+2026-03-01 18:54:16,231 - watchfiles.main - INFO - 1 change detected
+2026-03-01 18:54:17,360 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:54:17,361 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+2026-03-01 18:54:17,395 - vocalis-backend - INFO - CORS origins (development defaults): ['http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://localhost:5900', 'http://127.0.0.1:5900']
+2026-03-01 18:54:17,395 - vocalis-backend - INFO - CORS middleware configured with 6 allowed origin(s)
+INFO:     Started server process [2743]
+INFO:     Waiting for application startup.
+2026-03-01 18:54:17,414 - vocalis-backend - WARNING - Using default JWT secret (development mode). This is INSECURE for production. Set JWT_SECRET environment variable for production deployments.
+2026-03-01 18:54:17,414 - vocalis-backend - INFO - Initializing databases...
+2026-03-01 18:54:17,416 - vocalis-backend - INFO - Databases initialized
+2026-03-01 18:54:17,416 - vocalis-backend - INFO - Checking Ollama at http://localhost:11434 with model mistral...
+2026-03-01 18:54:17,444 - vocalis-backend - INFO - Ollama is available!
+INFO:     Application startup complete.
+INFO:     127.0.0.1:49693 - "GET /api/health HTTP/1.1" 200 OK
+2026-03-01 18:54:19,090 - vocalis-backend - INFO - User registered: doctor_v0_1772387659@example.com (UserRole.DOCTOR)
+INFO:     127.0.0.1:49694 - "POST /api/auth/register HTTP/1.1" 200 OK
+2026-03-01 18:54:19,120 - vocalis-backend - INFO - User registered: nurse_v0_1772387659@example.com (UserRole.NURSE)
+INFO:     127.0.0.1:49695 - "POST /api/auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49696 - "POST /api/patients HTTP/1.1" 200 OK
+2026-03-01 18:54:19,127 - vocalis-backend - INFO - Prescription created: 74862a08-1471-4ce6-ae7b-639c295eaf7e by doctor_v0_1772387659@example.com
+INFO:     127.0.0.1:49697 - "POST /api/prescriptions HTTP/1.1" 200 OK
+2026-03-01 18:54:19,130 - vocalis-backend - INFO - Prescription confirmed by doctor doctor_v0_1772387659@example.com: 74862a08-1471-4ce6-ae7b-639c295eaf7e
+INFO:     127.0.0.1:49698 - "PUT /api/prescriptions/74862a08-1471-4ce6-ae7b-639c295eaf7e/sign HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49699 - "PUT /api/prescriptions/74862a08-1471-4ce6-ae7b-639c295eaf7e/sign HTTP/1.1" 403 Forbidden
+INFO:     127.0.0.1:49700 - "POST /api/interventions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49701 - "POST /api/interventions/109c05b0-5a55-4521-ad34-1c9c5ebc5388/log HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49702 - "GET /api/prescriptions HTTP/1.1" 200 OK
+2026-03-01 18:54:19,188 - watchfiles.main - INFO - 2 changes detected
