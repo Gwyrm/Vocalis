@@ -235,7 +235,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
             Consumer<AuthProvider>(
               builder: (context, authProvider, _) {
                 // Only show prescription creation for doctors
-                if (!authProvider.currentUser?.isDoctor() ?? false) {
+                if (!(authProvider.currentUser?.isDoctor() ?? false)) {
                   return const SizedBox.shrink();
                 }
                 return Padding(
@@ -474,7 +474,7 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                   Consumer<AuthProvider>(
                                     builder: (context, authProvider, _) {
                                       // Only show edit/sign buttons for doctors
-                                      if (!authProvider.currentUser?.isDoctor() ?? false) {
+                                      if (!(authProvider.currentUser?.isDoctor() ?? false)) {
                                         return const SizedBox.shrink();
                                       }
                                       return Column(
