@@ -8,12 +8,14 @@ class ValidationResultsScreen extends StatefulWidget {
   final PrescriptionValidationResponse result;
   final Patient patient;
   final ApiService apiService;
+  final String? userRole; // 'doctor' or 'nurse'
 
   const ValidationResultsScreen({
     Key? key,
     required this.result,
     required this.patient,
     required this.apiService,
+    this.userRole,
   }) : super(key: key);
 
   @override
@@ -57,6 +59,19 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
     setState(() {});
   }
 
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(isError ? 'Erreur: $message' : message)),
+    );
+  }
+
+  void _popBack() {
+    Navigator.of(context).pop();
+    Navigator.of(context).pop();
+    Navigator.of(context).pop();
+  }
+
   Future<void> _savePatientChanges() async {
     setState(() => _isSavingChanges = true);
     try {
@@ -73,26 +88,18 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
           _isEditingPatient = false;
           _hasChanges = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Informations patient mises à jour')),
-        );
+        _showSnackBar('Informations patient mises à jour');
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
-      }
+      _showSnackBar('$e', isError: true);
     } finally {
       if (mounted) setState(() => _isSavingChanges = false);
     }
   }
 
-  Future<void> _signPrescription() async {
+  Future<void> _signPrescription({bool isDirectSign = false}) async {
     if (widget.result.prescription == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Erreur: Aucune ordonnance à signer')),
-      );
+      _showSnackBar('Aucune ordonnance à signer', isError: true);
       return;
     }
 
@@ -100,36 +107,29 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
     try {
       await widget.apiService.signPrescription(
         widget.result.prescription!.id,
-        '', // Empty string for signature (already simplified)
+        '',
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ordonnance signée et enregistrée')),
-        );
-        // Navigate back to patient detail page
-        // Pop 3 times: ValidationResultsScreen -> EditExtractedPrescriptionScreen -> TextPrescriptionScreen -> PatientDetailScreen
-        Navigator.of(context).pop();
-        Navigator.of(context).pop();
-        Navigator.of(context).pop();
+        final message = isDirectSign
+            ? 'Ordonnance signée'
+            : 'Ordonnance signée et enregistrée';
+        _showSnackBar(message);
+        _popBack();
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
-      }
+      _showSnackBar('$e', isError: true);
     } finally {
       if (mounted) setState(() => _isSigning = false);
     }
   }
 
-  void _addAllergy() {
+  void _addItemToList(String title, List<String> list) {
     _showAddDialog(
-      title: 'Ajouter une allergie',
+      title: title,
       onAdd: (value) {
         setState(() {
-          if (!_allergies.contains(value)) {
-            _allergies.add(value);
+          if (!list.contains(value)) {
+            list.add(value);
             _checkChanges();
           }
         });
@@ -137,33 +137,9 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
     );
   }
 
-  void _addCondition() {
-    _showAddDialog(
-      title: 'Ajouter une condition chronique',
-      onAdd: (value) {
-        setState(() {
-          if (!_chronicConditions.contains(value)) {
-            _chronicConditions.add(value);
-            _checkChanges();
-          }
-        });
-      },
-    );
-  }
-
-  void _addMedication() {
-    _showAddDialog(
-      title: 'Ajouter un médicament',
-      onAdd: (value) {
-        setState(() {
-          if (!_currentMedications.contains(value)) {
-            _currentMedications.add(value);
-            _checkChanges();
-          }
-        });
-      },
-    );
-  }
+  void _addAllergy() => _addItemToList('Ajouter une allergie', _allergies);
+  void _addCondition() => _addItemToList('Ajouter une condition chronique', _chronicConditions);
+  void _addMedication() => _addItemToList('Ajouter un médicament', _currentMedications);
 
   void _showAddDialog({
     required String title,
@@ -446,36 +422,7 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red),
               ),
               const SizedBox(height: 8),
-              ...widget.result.validation.errors.map((error) {
-                return Card(
-                  color: Colors.red.shade50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(Icons.error, color: Colors.red, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                error.type,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red,
-                                ),
-                              ),
-                              Text(error.message),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+              ...widget.result.validation.errors.map(_buildErrorCard).toList(),
               const SizedBox(height: 24),
             ],
 
@@ -486,41 +433,7 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange),
               ),
               const SizedBox(height: 8),
-              ...widget.result.validation.warnings.map((warning) {
-                final color = _getSeverityColor(warning.severity);
-                return Card(
-                  color: color.withOpacity(0.1),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(Icons.warning, color: color, size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                warning.type,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: color,
-                                ),
-                              ),
-                              Text(warning.message),
-                              Text(
-                                'Sévérité: ${warning.severity}',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+              ...widget.result.validation.warnings.map(_buildWarningCard).toList(),
               const SizedBox(height: 24),
             ],
 
@@ -556,37 +469,7 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
               ),
 
             const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: TextButton(
-                    onPressed: _isSigning
-                        ? null
-                        : () {
-                            // Pop 3 times: back to patient detail screen
-                            Navigator.of(context).pop();
-                            Navigator.of(context).pop();
-                            Navigator.of(context).pop();
-                          },
-                    child: const Text('Retour au patient'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _isSigning ? null : _signPrescription,
-                    icon: _isSigning
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.check_circle),
-                    label: const Text('Valider et enregistrer'),
-                  ),
-                ),
-              ],
-            ),
+            _buildActionButtons(),
           ],
         ),
       ),
@@ -605,6 +488,149 @@ class _ValidationResultsScreenState extends State<ValidationResultsScreen> {
           ),
         ),
         Expanded(child: Text(value)),
+      ],
+    );
+  }
+
+  Widget _buildErrorCard(dynamic error) {
+    return Card(
+      color: Colors.red.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.error, color: Colors.red, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    error.type,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
+                    ),
+                  ),
+                  Text(error.message),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildWarningCard(dynamic warning) {
+    final color = _getSeverityColor(warning.severity);
+    return Card(
+      color: color.withOpacity(0.1),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.warning, color: color, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    warning.type,
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                  ),
+                  Text(warning.message),
+                  Text(
+                    'Sévérité: ${warning.severity}',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons() {
+    final isLoading = _isSigning;
+    final backButton = Expanded(
+      child: TextButton(
+        onPressed: isLoading ? null : _popBack,
+        child: const Text('Retour au patient'),
+      ),
+    );
+
+    if (widget.userRole == 'doctor') {
+      return Column(
+        children: [
+          Row(
+            children: [
+              backButton,
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: isLoading ? null : () => _signPrescription(isDirectSign: true),
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.edit),
+                  label: const Text('Signer'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isLoading ? null : _signPrescription,
+                  icon: isLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.check_circle),
+                  label: const Text('Valider'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Signer: Signer uniquement | Valider: Signer et enregistrer',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        backButton,
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            onPressed: isLoading ? null : _signPrescription,
+            icon: isLoading
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check_circle),
+            label: const Text('Valider et enregistrer'),
+          ),
+        ),
       ],
     );
   }
