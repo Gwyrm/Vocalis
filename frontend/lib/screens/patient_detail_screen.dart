@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../api_service.dart';
 import '../models/patient.dart';
 import '../models/prescription.dart';
+import '../providers/auth_provider.dart';
 import 'patient_form_screen.dart';
 import 'voice_prescription_screen.dart';
 import 'text_prescription_screen.dart';
@@ -461,48 +463,59 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                     ),
                                   ],
                                   const SizedBox(height: 12),
-                                  if (prescription.status == 'draft') ...[
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextButton.icon(
-                                            onPressed: () => _editPrescription(prescription),
-                                            icon: const Icon(Icons.edit),
-                                            label: const Text('Éditer'),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
+                                  Consumer<AuthProvider>(
+                                    builder: (context, authProvider, _) {
+                                      final isDoctor = authProvider.currentUser?.isDoctor() ?? false;
+
+                                      if (prescription.status == 'draft') {
+                                        return Row(
+                                          children: [
+                                            Expanded(
+                                              child: TextButton.icon(
+                                                onPressed: () => _editPrescription(prescription),
+                                                icon: const Icon(Icons.edit),
+                                                label: const Text('Éditer'),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            // Only doctors can sign
+                                            if (isDoctor)
+                                              Expanded(
+                                                child: ElevatedButton.icon(
+                                                  onPressed: () =>
+                                                      _showSignPrescriptionDialog(
+                                                        prescription,
+                                                      ),
+                                                  icon: const Icon(Icons.check_circle),
+                                                  label: const Text('Signer'),
+                                                  style: ElevatedButton.styleFrom(
+                                                    backgroundColor: Colors.green.shade600,
+                                                  ),
+                                                ),
+                                              )
+                                            else
+                                              const SizedBox.shrink(),
+                                          ],
+                                        );
+                                      } else if (!prescription.isSigned && isDoctor) {
+                                        return SizedBox(
+                                          width: double.infinity,
                                           child: ElevatedButton.icon(
                                             onPressed: () =>
                                                 _showSignPrescriptionDialog(
                                                   prescription,
                                                 ),
-                                            icon: const Icon(Icons.check_circle),
+                                            icon: const Icon(Icons.edit_document),
                                             label: const Text('Signer'),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: Colors.green.shade600,
+                                              backgroundColor: Colors.blue.shade600,
                                             ),
                                           ),
-                                        ),
-                                      ],
-                                    ),
-                                  ] else if (!prescription.isSigned) ...[
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton.icon(
-                                        onPressed: () =>
-                                            _showSignPrescriptionDialog(
-                                              prescription,
-                                            ),
-                                        icon: const Icon(Icons.edit_document),
-                                        label: const Text('Signer'),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.blue.shade600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                        );
+                                      }
+                                      return const SizedBox.shrink();
+                                    },
+                                  ),
                                 ],
                               ),
                             ),
