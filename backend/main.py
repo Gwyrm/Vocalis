@@ -351,8 +351,11 @@ def store_refresh_token(db: Session, user_id: str, org_id: str, email: str, refr
         jti = payload.get("jti")
         exp_timestamp = payload.get("exp")
 
-        expires_at = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc) if exp_timestamp else \
-                    datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRATION_DAYS)
+        # Convert to naive UTC datetime
+        if exp_timestamp:
+            expires_at = datetime.utcfromtimestamp(exp_timestamp)
+        else:
+            expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRATION_DAYS)
 
         refresh_token_record = RefreshToken(
             jti=jti,
@@ -360,7 +363,7 @@ def store_refresh_token(db: Session, user_id: str, org_id: str, email: str, refr
             org_id=org_id,
             token_family=token_family,
             created_at=datetime.utcnow(),
-            expires_at=expires_at.replace(tzinfo=None),  # Store as naive datetime
+            expires_at=expires_at,
             last_used_at=datetime.utcnow(),
             is_revoked=False
         )
@@ -390,11 +393,12 @@ def get_valid_refresh_token(db: Session, jti: str, user_id: str, org_id: str) ->
     return token_record
 
 
-def revoke_refresh_token(db: Session, jti: str, user_id: str):
+def revoke_refresh_token(db: Session, jti: str, user_id: str, org_id: str):
     """Revoke a specific refresh token"""
     token_record = db.query(RefreshToken).filter(
         RefreshToken.jti == jti,
-        RefreshToken.user_id == user_id
+        RefreshToken.user_id == user_id,
+        RefreshToken.org_id == org_id
     ).first()
 
     if token_record:
@@ -587,7 +591,6 @@ async def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_
     store_refresh_token(db, user.id, user.org_id, user.email, new_refresh_token, token_family)
 
     # Calculate expiration times (in seconds)
-    from auth import JWT_EXPIRATION_HOURS
     access_token_expires_in = JWT_EXPIRATION_HOURS * 3600
     refresh_token_expires_in = REFRESH_TOKEN_EXPIRATION_DAYS * 24 * 3600
 
@@ -614,13 +617,13 @@ async def logout(
         # Token is invalid or expired - already unusable, return success
         return LogoutResponse(
             status="success",
-            message="Already logged out or token expired"
+            message="Logout successful"
         )
 
     jti = token_payload.get("jti")
 
     # Revoke the token
-    revoke_refresh_token(db, jti, current_user.id)
+    revoke_refresh_token(db, jti, current_user.id, current_user.org_id)
 
     logger.info(f"User logged out: {current_user.email}")
 
