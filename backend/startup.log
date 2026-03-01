@@ -113,3 +113,5 @@ INFO:     127.0.0.1:49700 - "POST /api/interventions HTTP/1.1" 200 OK
 INFO:     127.0.0.1:49701 - "POST /api/interventions/109c05b0-5a55-4521-ad34-1c9c5ebc5388/log HTTP/1.1" 200 OK
 INFO:     127.0.0.1:49702 - "GET /api/prescriptions HTTP/1.1" 200 OK
 2026-03-01 18:54:19,188 - watchfiles.main - INFO - 2 changes detected
+2026-03-01 18:55:01,521 - watchfiles.main - INFO - 3 changes detected
+2026-03-01 18:55:24,613 - watchfiles.main - INFO - 3 changes detected
