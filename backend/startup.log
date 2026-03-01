@@ -115,3 +115,9 @@ INFO:     127.0.0.1:49702 - "GET /api/prescriptions HTTP/1.1" 200 OK
 2026-03-01 18:54:19,188 - watchfiles.main - INFO - 2 changes detected
 2026-03-01 18:55:01,521 - watchfiles.main - INFO - 3 changes detected
 2026-03-01 18:55:24,613 - watchfiles.main - INFO - 3 changes detected
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-03-01 18:57:07,975 - vocalis-backend - INFO - Shutting down...
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2743]
+INFO:     Stopping reloader process [2722]

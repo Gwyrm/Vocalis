@@ -108,20 +108,32 @@ curl -X DELETE http://localhost:8080/api/patients/{patient_id} \
   -H "Authorization: Bearer $ACCESS_TOKEN"
 ```
 
-### 3. Prescription Management
+### 3. Prescription Management (Medications & Medical Devices)
+
+**Prescription Types:**
+- **Medication Prescriptions** - Drugs, treatments, pharmaceutical interventions
+- **Medical Device Prescriptions** - Equipment, devices, mobility aids, monitoring devices
+- **Combined** - Both medications AND devices in single prescription
 
 **Workflow:**
-1. Doctor creates prescription (draft)
-2. Prescription is AI-assisted (optional)
-3. Doctor signs with digital signature
-4. Prescription marked as "signed" and ready
-5. Interventions scheduled as follow-up
+1. Doctor creates prescription (draft) - medications and/or devices
+2. Doctor assigns medical devices to prescription
+3. Prescription is AI-assisted (optional)
+4. Doctor signs with digital signature
+5. Prescription marked as "signed" and ready for delivery
+6. Interventions scheduled as follow-up
 
 **Status Stages:**
 - `draft` - Initial creation
 - `signed` - Doctor signature applied
 - `completed` - All interventions done (future)
 - `archived` - Historical record
+
+**Device Management:**
+- Create reusable device catalog
+- Assign devices to prescriptions (quantity, instructions, priority)
+- Track device status (available, assigned, in_use, maintenance, returned)
+- Device history and utilization tracking
 
 **Endpoints:**
 ```bash
@@ -162,15 +174,82 @@ curl -X PUT http://localhost:8080/api/prescriptions/{prescription_id} \
   -d '{...updates...}'
 ```
 
+### 3.1 Medical Device Integration
+
+**Supported Medical Device Types:**
+- Mobility aids: Walkers, canes, crutches, wheelchairs, scooters
+- Monitoring devices: Blood pressure monitors, glucose meters, pulse oximeters
+- Assistive devices: Hearing aids, compression stockings, braces
+- Home medical equipment: Nebulizers, CPAPs, oxygen concentrators
+- Bath/safety equipment: Grab bars, shower chairs, raised toilet seats
+- Specialized: Feeding tubes, catheters, wound care supplies
+- And many others...
+
+**Device Management:**
+```bash
+# Create medical device (inventory)
+curl -X POST http://localhost:8080/api/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Wheelchair - Folding Manual",
+    "model": "WC-2024-Premium",
+    "serial_number": "WC-2024-0001",
+    "description": "Lightweight folding manual wheelchair"
+  }'
+# Get: DEVICE_ID
+
+# List all devices
+curl -X GET http://localhost:8080/api/devices \
+  -H "Authorization: Bearer $TOKEN"
+
+# Update device status
+curl -X PATCH http://localhost:8080/api/devices/{device_id} \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status": "available"}'
+```
+
+**Device Assignment to Prescription:**
+```bash
+# Add device to prescription (after creating prescription)
+curl -X POST http://localhost:8080/api/prescriptions/{prescription_id}/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "device_id": "'$DEVICE_ID'",
+    "quantity": 1,
+    "instructions": "Use for mobility assistance",
+    "priority": "high"
+  }'
+
+# Get devices for prescription
+curl -X GET http://localhost:8080/api/prescriptions/{prescription_id}/devices \
+  -H "Authorization: Bearer $TOKEN"
+
+# Remove device from prescription
+curl -X DELETE http://localhost:8080/api/prescriptions/{prescription_id}/devices/{device_id} \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Device Status Tracking:**
+- `available` - In inventory, not assigned
+- `assigned` - Linked to prescription
+- `in_use` - Delivered to patient
+- `maintenance` - Under repair/service
+- `returned` - Returned by patient
+
 **Access Control Matrix:**
 
 | Operation | Doctor | Nurse | Public |
 |-----------|--------|-------|--------|
-| Create    | ✅     | ❌    | ❌     |
-| Read      | ✅     | ✅    | ❌     |
-| Update    | ✅     | ❌    | ❌     |
-| Sign      | ✅ ONLY| ❌    | ❌     |
-| Delete    | ✅     | ❌    | ❌     |
+| Create prescription | ✅ | ❌ | ❌ |
+| Add devices to Rx | ✅ | ❌ | ❌ |
+| Read prescription | ✅ | ✅ | ❌ |
+| Update prescription | ✅ | ❌ | ❌ |
+| Sign prescription | ✅ ONLY | ❌ | ❌ |
+| Manage devices | ✅ | ❌ | ❌ |
+| Track device status | ✅ | ✅ | ❌ |
+| Delete | ✅ | ❌ | ❌ |
 
 ### 4. Prescription Signature
 
@@ -258,7 +337,33 @@ curl -X GET http://localhost:8080/api/interventions/{intervention_id}/logs \
 
 ---
 
-## Complete V0 Workflow Example
+## Complete V0 Workflow Example (Medications + Devices)
+
+This example shows a complete prescription with **both medications AND medical devices**.
+
+### Step 0: Setup Device Inventory
+```bash
+# Create medical device (add to inventory)
+curl -X POST http://localhost:8080/api/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -d '{
+    "name":"Mobility Walker",
+    "model":"MW-2024-Elite",
+    "serial_number":"MW-2024-001",
+    "description":"4-wheel walker with seat and brakes"
+  }'
+# Get: DEVICE_ID
+
+# Create another device (optional)
+curl -X POST http://localhost:8080/api/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -d '{
+    "name":"Blood Pressure Monitor",
+    "model":"BPM-2024",
+    "serial_number":"BPM-2024-001",
+    "description":"Home use automated blood pressure monitor"
+  }'
+```
 
 ### Step 1: Setup Users
 ```bash
@@ -284,18 +389,51 @@ curl -X POST http://localhost:8080/api/patients \
 # Get: PATIENT_ID
 ```
 
-### Step 3: Create Prescription
+### Step 3: Create Prescription (Medications)
 ```bash
 curl -X POST http://localhost:8080/api/prescriptions \
   -H "Authorization: Bearer $DOCTOR_TOKEN" \
   -d '{
     "patient_id":"'$PATIENT_ID'",
     "patient_name":"John Smith","patient_age":"61",
-    "diagnosis":"Hypertension","medication":"Lisinopril",
+    "diagnosis":"Hypertension - Mobility Limited",
+    "medication":"Lisinopril",
     "dosage":"10mg","duration":"30 days"
   }'
 # Get: PRESCRIPTION_ID
 ```
+
+### Step 3.5: Add Medical Devices to Prescription
+```bash
+# Add walker to prescription
+curl -X POST http://localhost:8080/api/prescriptions/$PRESCRIPTION_ID/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -d '{
+    "device_id":"'$DEVICE_ID'",
+    "quantity":1,
+    "instructions":"Use for mobility assistance, especially on stairs",
+    "priority":"high"
+  }'
+
+# Add blood pressure monitor to prescription
+curl -X POST http://localhost:8080/api/prescriptions/$PRESCRIPTION_ID/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN" \
+  -d '{
+    "device_id":"'$BPM_DEVICE_ID'",
+    "quantity":1,
+    "instructions":"Check BP daily, log readings",
+    "priority":"normal"
+  }'
+
+# View all devices on this prescription
+curl -X GET http://localhost:8080/api/prescriptions/$PRESCRIPTION_ID/devices \
+  -H "Authorization: Bearer $DOCTOR_TOKEN"
+```
+
+**Result:** Prescription now includes:
+- ✅ Medication: Lisinopril 10mg
+- ✅ Device 1: Mobility Walker (high priority)
+- ✅ Device 2: Blood Pressure Monitor (normal priority)
 
 ### Step 4: Sign Prescription (Doctor)
 ```bash
@@ -306,20 +444,28 @@ curl -X PUT http://localhost:8080/api/prescriptions/$PRESCRIPTION_ID/sign \
 # Status: draft → signed
 ```
 
-### Step 5: Schedule Intervention
+### Step 5: Sign Prescription with Signature
+```bash
+# Signature is now ready to be applied (medications + devices included)
+# Status: draft → signed
+# Both medications AND devices are now part of signed prescription
+```
+
+### Step 6: Schedule Follow-up Intervention
 ```bash
 curl -X POST http://localhost:8080/api/interventions \
   -H "Authorization: Bearer $DOCTOR_TOKEN" \
   -d '{
     "prescription_id":"'$PRESCRIPTION_ID'",
-    "intervention_type":"Follow-up visit",
-    "scheduled_date":"2026-03-15T10:00:00",
-    "priority":"normal"
+    "intervention_type":"Walker delivery & training",
+    "description":"Deliver mobility walker and provide usage training",
+    "scheduled_date":"2026-03-10T14:00:00",
+    "priority":"high"
   }'
 # Get: INTERVENTION_ID
 ```
 
-### Step 6: Nurse Logs Completion
+### Step 7: Nurse Logs Completion
 ```bash
 curl -X POST http://localhost:8080/api/interventions/$INTERVENTION_ID/log \
   -H "Authorization: Bearer $NURSE_TOKEN" \
@@ -390,28 +536,52 @@ python test_v0_workflow.py
 
 ## API Summary
 
+### Authentication (4 endpoints)
 | Endpoint | Method | Auth | Purpose |
 |----------|--------|------|---------|
 | `/api/auth/register` | POST | None | User registration |
 | `/api/auth/login` | POST | None | User login |
 | `/api/auth/refresh` | POST | None | Refresh access token |
 | `/api/auth/logout` | POST | Bearer | Logout & revoke token |
+
+### Patient Management (5 endpoints)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
 | `/api/patients` | POST | Bearer | Create patient |
 | `/api/patients` | GET | Bearer | List patients |
 | `/api/patients/{id}` | GET | Bearer | Get patient |
 | `/api/patients/{id}` | PUT | Bearer | Update patient |
 | `/api/patients/{id}` | DELETE | Bearer | Delete patient |
-| `/api/prescriptions` | POST | Doctor | Create prescription |
+
+### Prescription Management (7 endpoints)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/api/prescriptions` | POST | Doctor | Create prescription (Rx for meds/devices) |
 | `/api/prescriptions` | GET | Bearer | List prescriptions |
-| `/api/prescriptions/{id}` | GET | Bearer | Get prescription |
+| `/api/prescriptions/{id}` | GET | Bearer | Get prescription details |
 | `/api/prescriptions/{id}` | PUT | Doctor | Update prescription |
-| `/api/prescriptions/{id}/sign` | PUT | Doctor | Sign prescription |
-| `/api/prescriptions/{id}/devices` | POST | Doctor | Add device to prescription |
-| `/api/interventions` | POST | Doctor | Create intervention |
+| `/api/prescriptions/{id}/sign` | PUT | Doctor | **Sign prescription (doctor-only)** |
+| `/api/prescriptions/{id}/devices` | POST | Doctor | **Add device to prescription** |
+| `/api/prescriptions/{id}/devices` | GET | Bearer | **Get devices on prescription** |
+
+### Medical Device Management (4 endpoints)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/api/devices` | POST | Doctor | Create device (add to inventory) |
+| `/api/devices` | GET | Bearer | List all devices |
+| `/api/devices/{id}` | PATCH | Doctor | Update device status |
+| `/api/devices/{id}/analytics` | GET | Doctor | Get device utilization metrics |
+
+### Intervention Tracking (5 endpoints)
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/api/interventions` | POST | Doctor | Create intervention (follow-up) |
 | `/api/interventions` | GET | Bearer | List interventions |
 | `/api/interventions/{id}` | GET | Bearer | Get intervention |
 | `/api/interventions/{id}/log` | POST | Bearer | Log status update |
 | `/api/interventions/{id}/logs` | GET | Bearer | Get intervention history |
+
+**Total: 25 endpoints**
 
 ---
 
@@ -451,7 +621,7 @@ patients
 ├── created_at
 └── updated_at
 
--- Prescriptions
+-- Prescriptions (MEDICATIONS & DEVICES)
 prescriptions
 ├── id (UUID)
 ├── org_id
@@ -459,7 +629,7 @@ prescriptions
 ├── patient_id
 ├── patient_name
 ├── diagnosis
-├── medication
+├── medication (primary medication)
 ├── dosage
 ├── duration
 ├── status (draft, signed, ...)
@@ -467,6 +637,29 @@ prescriptions
 ├── doctor_signature (Base64)
 ├── doctor_signed_at (datetime)
 └── created_at
+Note: Can have 0+ medications, linked with PrescriptionDevice table
+
+-- Medical Devices (INVENTORY)
+devices
+├── id (UUID)
+├── org_id
+├── name (e.g., "Wheelchair", "Monitor")
+├── model
+├── serial_number (unique)
+├── description
+├── status (available, assigned, in_use, maintenance, returned)
+└── created_at
+
+-- Prescription-Device Link (MANY-TO-MANY)
+prescription_devices
+├── id (UUID)
+├── prescription_id (foreign key)
+├── device_id (foreign key)
+├── quantity (how many of this device)
+├── instructions (usage instructions for this device)
+├── priority (low, normal, high)
+└── created_at
+Note: Links prescriptions to devices (one prescription can have multiple devices)
 
 -- Interventions (follow-up tasks)
 interventions
