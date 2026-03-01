@@ -459,10 +459,10 @@ async def change_password(
 @app.post("/api/prescriptions", response_model=PrescriptionResponse)
 async def create_prescription(
     request: PrescriptionCreate,
-    current_user: User = Depends(get_doctor),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Create a new prescription (doctor only)"""
+    """Create a new prescription (doctor or nurse)"""
 
     # Fetch patient data to auto-populate name and age
     patient = db.query(Patient).filter(
@@ -584,10 +584,10 @@ async def list_prescriptions(
 async def update_prescription(
     prescription_id: str,
     request: PrescriptionUpdate,
-    current_user: User = Depends(get_doctor),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
-    """Update prescription (doctor only, draft only)"""
+    """Update prescription (doctor or nurse, draft only)"""
 
     prescription = db.query(Prescription).filter(
         Prescription.id == prescription_id,

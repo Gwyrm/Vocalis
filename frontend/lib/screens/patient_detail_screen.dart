@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart';
 import '../api_service.dart';
 import '../models/patient.dart';
 import '../models/prescription.dart';
-import '../providers/auth_provider.dart';
 import 'patient_form_screen.dart';
 import 'voice_prescription_screen.dart';
 import 'text_prescription_screen.dart';
@@ -231,14 +229,8 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
               ),
             ),
 
-            // Quick Actions (Doctor only)
-            Consumer<AuthProvider>(
-              builder: (context, authProvider, _) {
-                // Only show prescription creation for doctors
-                if (!(authProvider.currentUser?.isDoctor() ?? false)) {
-                  return const SizedBox.shrink();
-                }
-                return Padding(
+            // Quick Actions (Doctor or Nurse)
+            Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,8 +261,6 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                       ),
                     ],
                   ),
-                );
-              },
             ),
 
             // Prescription History
@@ -471,60 +461,48 @@ class _PatientDetailScreenState extends State<PatientDetailScreen> {
                                     ),
                                   ],
                                   const SizedBox(height: 12),
-                                  Consumer<AuthProvider>(
-                                    builder: (context, authProvider, _) {
-                                      // Only show edit/sign buttons for doctors
-                                      if (!(authProvider.currentUser?.isDoctor() ?? false)) {
-                                        return const SizedBox.shrink();
-                                      }
-                                      return Column(
-                                        children: [
-                                          if (prescription.status == 'draft') ...[
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: TextButton.icon(
-                                                    onPressed: () => _editPrescription(prescription),
-                                                    icon: const Icon(Icons.edit),
-                                                    label: const Text('Éditer'),
-                                                  ),
+                                  if (prescription.status == 'draft') ...[
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: TextButton.icon(
+                                            onPressed: () => _editPrescription(prescription),
+                                            icon: const Icon(Icons.edit),
+                                            label: const Text('Éditer'),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: ElevatedButton.icon(
+                                            onPressed: () =>
+                                                _showSignPrescriptionDialog(
+                                                  prescription,
                                                 ),
-                                                const SizedBox(width: 8),
-                                                Expanded(
-                                                  child: ElevatedButton.icon(
-                                                    onPressed: () =>
-                                                        _showSignPrescriptionDialog(
-                                                          prescription,
-                                                        ),
-                                                    icon: const Icon(Icons.check_circle),
-                                                    label: const Text('Signer'),
-                                                    style: ElevatedButton.styleFrom(
-                                                      backgroundColor: Colors.green.shade600,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
+                                            icon: const Icon(Icons.check_circle),
+                                            label: const Text('Signer'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.green.shade600,
                                             ),
-                                          ] else if (!prescription.isSigned) ...[
-                                            SizedBox(
-                                              width: double.infinity,
-                                              child: ElevatedButton.icon(
-                                                onPressed: () =>
-                                                    _showSignPrescriptionDialog(
-                                                      prescription,
-                                                    ),
-                                                icon: const Icon(Icons.edit_document),
-                                                label: const Text('Signer'),
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Colors.blue.shade600,
-                                                ),
-                                              ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ] else if (!prescription.isSigned) ...[
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () =>
+                                            _showSignPrescriptionDialog(
+                                              prescription,
                                             ),
-                                          ],
-                                        ],
-                                      );
-                                    },
-                                  ),
+                                        icon: const Icon(Icons.edit_document),
+                                        label: const Text('Signer'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.blue.shade600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
