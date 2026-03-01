@@ -41,6 +41,7 @@ nav:
     - Prescription Lifecycle & Editing: features/prescription-lifecycle.md
     - Prescription History: features/history.md
     - User Roles: features/user-roles.md
+    - Patient Interventions: features/interventions.md
   - Testing:
     - Backend Tests: testing/backend.md
     - Manual Testing: testing/manual.md
