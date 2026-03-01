@@ -178,17 +178,52 @@ app = FastAPI(
 # CORS CONFIGURATION
 # ============================================================================
 
-# Add FastAPI CORS middleware for proper CORS handling
+def get_cors_origins() -> List[str]:
+    """
+    Get allowed CORS origins from environment variable.
+
+    Environment variable: CORS_ORIGINS (comma-separated list of origins)
+    Format: "http://localhost:3000,http://localhost:8080,https://example.com"
+
+    Default origins (if env var not set):
+    - Development: http://localhost:3000, http://localhost:8080, http://127.0.0.1:8080
+    - Production: https origins only (requires explicit configuration)
+    """
+    env_origins = os.getenv("CORS_ORIGINS", "").strip()
+
+    if env_origins:
+        # Parse comma-separated origins from environment
+        origins = [origin.strip() for origin in env_origins.split(",") if origin.strip()]
+        logger.info(f"CORS origins from environment: {origins}")
+        return origins
+
+    # Default to localhost origins for development
+    default_origins = [
+        "http://localhost:3000",      # Web app (local)
+        "http://localhost:8080",      # Web app (alternative)
+        "http://127.0.0.1:3000",      # Web app (loopback)
+        "http://127.0.0.1:8080",      # Web app (loopback)
+        "http://localhost:5900",      # Flutter web (local)
+        "http://127.0.0.1:5900",      # Flutter web (loopback)
+    ]
+    logger.info(f"CORS origins (development defaults): {default_origins}")
+    return default_origins
+
+
+# Get allowed origins and configure CORS
+cors_origins = get_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
-    expose_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Explicit methods
+    allow_headers=["Content-Type", "Authorization"],  # Only required headers
+    expose_headers=["Content-Length"],
+    max_age=3600,  # Cache preflight for 1 hour
 )
 
-logger.info("CORS middleware configured - all origins allowed (development mode)")
+logger.info(f"CORS middleware configured with {len(cors_origins)} allowed origin(s)")
 
 
 # ============================================================================
