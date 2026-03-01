@@ -344,6 +344,67 @@ Expected: No `Access-Control-Allow-Origin` header
 
 ---
 
+---
+
+## Rate Limiting Configuration
+
+Rate limiting protects the API from brute force attacks, API abuse, and DoS attacks.
+
+### Default Rate Limits
+
+**Authentication (Strict):**
+- Login: 5 attempts/minute per IP
+- Register: 3 attempts/minute per IP
+
+**Chat & LLM (Moderate):**
+- Chat: 20 messages/minute per IP
+- PDF Generation: 10/minute per user
+- Voice Transcription: 10/minute per user
+
+**Data Operations (Standard):**
+- Create: 100/minute per IP
+- Read: 300/minute per IP
+- Update: 100/minute per IP
+- Delete: 50/minute per IP
+
+### When Rate Limited
+
+**Response Status:** 429 Too Many Requests
+
+**Response Body:**
+```json
+{
+  "status": "error",
+  "detail": "Too many requests. Please try again later.",
+  "error_code": "RATE_LIMIT_EXCEEDED"
+}
+```
+
+**Response Headers:**
+```
+Retry-After: 23
+X-RateLimit-Limit: 5
+X-RateLimit-Remaining: 0
+X-RateLimit-Reset: 1640000023
+```
+
+### Production Configuration
+
+For distributed deployments with multiple workers, use Redis:
+
+```bash
+export REDIS_URL=redis://localhost:6379
+```
+
+In Docker:
+```dockerfile
+ENV REDIS_URL=redis://redis:6379
+```
+
+See `RATE_LIMITING.md` for complete configuration guide.
+
+---
+
 ## Monitoring
 
 ### Log Output on Startup
@@ -356,6 +417,7 @@ INFO:vocalis-backend:CORS middleware configured with 1 allowed origin(s)
 1. **CORS rejected requests** - Check for unexpected origins
 2. **JWT errors** - May indicate token tampering
 3. **Failed requests** - Track 403 errors (forbidden)
+4. **Rate limit violations** - Check for brute force attempts or API abuse
 
 ---
 

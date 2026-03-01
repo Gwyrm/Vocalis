@@ -15,6 +15,7 @@ alembic
 python-jose[cryptography]
 passlib[bcrypt,argon2]
 python-multipart
+slowapi  # Rate limiting for FastAPI
 
 # Validation & Configuration
 pydantic>=2.0

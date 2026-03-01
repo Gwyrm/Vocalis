@@ -3,9 +3,10 @@ Vocalis Backend - Healthcare Device Delivery Platform
 Multi-user system with authentication, prescriptions, and LLM-powered assistance
 """
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Form
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, UploadFile, File, WebSocket, WebSocketDisconnect, Form, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 from contextlib import asynccontextmanager
 import os
@@ -59,6 +60,9 @@ from llm_utils import (
     generate_response, cleanup_temp_file, PrescriptionData, ChatRequest, ChatResponse,
     GeneratePDFRequest, format_chat_prompt
 )
+
+# Rate limiting
+from rate_limit import limiter, rate_limit_error_handler, RateLimits
 
 # Configure logging
 logging.basicConfig(
@@ -180,6 +184,14 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+# Add rate limiter to app
+app.state.limiter = limiter
+
+# Register rate limit error handler
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request, exc):
+    return await rate_limit_error_handler(request, exc)
 
 # ============================================================================
 # CORS CONFIGURATION
@@ -327,6 +339,7 @@ async def get_nurse(current_user: User = Depends(get_current_user)) -> User:
 # ============================================================================
 
 @app.post("/api/auth/register", response_model=TokenResponse)
+@limiter.limit(RateLimits.AUTH_REGISTER)
 async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
     """Register a new user (first user can register without org, creates org)"""
 
@@ -379,6 +392,7 @@ async def register(request: UserRegisterRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/api/auth/login", response_model=TokenResponse)
+@limiter.limit(RateLimits.AUTH_LOGIN)
 async def login(request: UserLoginRequest, db: Session = Depends(get_db)):
     """Login user and return JWT token
 
@@ -1902,8 +1916,10 @@ async def clear_queue_item(
 # ============================================================================
 
 @app.post("/api/chat", response_model=ChatResponse)
+@limiter.limit(RateLimits.CHAT_MESSAGE)
 async def chat(
     request: ChatRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """Chat endpoint with LLM (authenticated users only)"""
@@ -1947,8 +1963,10 @@ async def chat(
 # ============================================================================
 
 @app.post("/api/generate-pdf")
+@limiter.limit(RateLimits.PDF_GENERATE)
 async def generate_pdf(
     request: GeneratePDFRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
@@ -2327,9 +2345,11 @@ async def delete_patient(
 # ============================================================================
 
 @app.post("/api/voice/transcribe", response_model=TranscriptionResponse)
+@limiter.limit(RateLimits.VOICE_TRANSCRIBE)
 async def transcribe_voice(
     file: UploadFile = File(...),
     language: str = "fr",
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_for_request)
 ):
