@@ -51,9 +51,9 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : ${e.toString()}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur : ${e.toString()}')));
       }
     } finally {
       setState(() => isLoading = false);
@@ -64,8 +64,9 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
     if (selectedStatus == 'all') {
       filteredInterventions = interventions;
     } else {
-      filteredInterventions =
-          interventions.where((i) => i.status == selectedStatus).toList();
+      filteredInterventions = interventions
+          .where((i) => i.status == selectedStatus)
+          .toList();
     }
   }
 
@@ -133,7 +134,10 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
                       children: [
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Text('Filtre:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: Text(
+                            'Filtre:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
                         ),
                         _buildStatusChip('all', 'Tous'),
                         _buildStatusChip('scheduled', 'Planifiées'),
@@ -195,6 +199,7 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
       child: ListTile(
+        isThreeLine: true,
         title: Text(
           intervention.interventionType,
           style: const TextStyle(fontWeight: FontWeight.bold),
@@ -202,13 +207,13 @@ class _InterventionListScreenState extends State<InterventionListScreen> {
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text('Planifiée: ${intervention.formattedScheduledDate}'),
-            Text('Priorité: ${intervention.priorityDisplayName}'),
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),

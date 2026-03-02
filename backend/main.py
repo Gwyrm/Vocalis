@@ -2733,11 +2733,11 @@ async def create_voice_prescription(
                 patient_id=patient.id,
                 patient_name=f"{patient.first_name} {patient.last_name}",
                 patient_age=str(patient_age),
-                diagnosis=structured.get("diagnosis", ""),
-                medication=structured.get("medication", ""),
-                dosage=structured.get("dosage", ""),
+                diagnosis=structured.get("diagnosis") or "",
+                medication=structured.get("medication") or "",
+                dosage=structured.get("dosage") or "",
                 duration=structured.get("duration") or "30 days",
-                special_instructions=structured.get("special_instructions"),
+                special_instructions=structured.get("special_instructions") or "",
                 status="draft"
             )
             db.add(prescription)
@@ -2856,11 +2856,11 @@ async def create_text_prescription(
                 patient_id=patient.id,
                 patient_name=f"{patient.first_name} {patient.last_name}",
                 patient_age=str(patient_age),
-                diagnosis=structured.get("diagnosis", ""),
-                medication=structured.get("medication", ""),
-                dosage=structured.get("dosage", ""),
+                diagnosis=structured.get("diagnosis") or "",
+                medication=structured.get("medication") or "",
+                dosage=structured.get("dosage") or "",
                 duration=structured.get("duration") or "30 days",
-                special_instructions=structured.get("special_instructions"),
+                special_instructions=structured.get("special_instructions") or "",
                 status="draft"
             )
             db.add(prescription)

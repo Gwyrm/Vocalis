@@ -12,7 +12,7 @@ import 'validation_results_screen.dart';
 
 // Conditional import for path_provider (mobile only)
 import 'package:path_provider/path_provider.dart'
-  if (dart.library.html) '../stub_path_provider.dart';
+    if (dart.library.html) '../stub_path_provider.dart';
 
 class VoicePrescriptionScreen extends StatefulWidget {
   final Patient patient;
@@ -63,7 +63,8 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
 
       // Generate file path for recording
       final dir = await getApplicationDocumentsDirectory();
-      final fileName = 'prescription_${DateTime.now().millisecondsSinceEpoch}.wav';
+      final fileName =
+          'prescription_${DateTime.now().millisecondsSinceEpoch}.wav';
       _filePath = '${dir.path}/$fileName';
 
       // Simulate recording by setting a flag
@@ -82,9 +83,9 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
     }
   }
 
@@ -97,7 +98,8 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
 
       // On web, recording might not be available, so set a dummy path for demo
       if (_filePath == null || _filePath!.isEmpty) {
-        _filePath = 'recording_demo_${DateTime.now().millisecondsSinceEpoch}.wav';
+        _filePath =
+            'recording_demo_${DateTime.now().millisecondsSinceEpoch}.wav';
       }
 
       if (_filePath != null && _filePath!.isNotEmpty) {
@@ -106,9 +108,9 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
     }
   }
 
@@ -126,7 +128,10 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       );
 
       if (mounted) {
-        final userRole = Provider.of<AuthProvider>(context, listen: false).currentUser?.role;
+        final userRole = Provider.of<AuthProvider>(
+          context,
+          listen: false,
+        ).currentUser?.role;
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (context) => EditExtractedPrescriptionScreen(
@@ -140,9 +145,9 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Erreur: $e')));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -179,110 +184,114 @@ class _VoicePrescriptionScreenState extends State<VoicePrescriptionScreen> {
           ],
         ),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'Patient: ${widget.patient.fullName}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _isRecording
-                    ? 'Enregistrement en cours...'
-                    : (_filePath != null ? 'Enregistrement prêt' : 'Appuyez pour enregistrer'),
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 32),
-
-              // Recording Duration
-              if (_isRecording)
+      body: SingleChildScrollView(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
                 Text(
-                  _formatDuration(_recordingDuration),
+                  'Patient: ${widget.patient.fullName}',
                   style: const TextStyle(
-                    fontSize: 48,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.red,
                   ),
                 ),
-              const SizedBox(height: 32),
-
-              // Record Button
-              if (!_isProcessing)
-                FloatingActionButton.large(
-                  onPressed: _isRecording ? _stopRecording : _startRecording,
-                  backgroundColor: _isRecording ? Colors.red : Colors.blue,
-                  child: Icon(
-                    _isRecording ? Icons.stop : Icons.mic,
-                    size: 32,
-                  ),
-                )
-              else
-                const SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: CircularProgressIndicator(strokeWidth: 4),
+                const SizedBox(height: 16),
+                Text(
+                  _isRecording
+                      ? 'Enregistrement en cours...'
+                      : (_filePath != null
+                            ? 'Enregistrement prêt'
+                            : 'Appuyez pour enregistrer'),
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                 ),
+                const SizedBox(height: 32),
 
-              const SizedBox(height: 32),
-
-              // Transcribe Button - Show when recording is stopped and not processing
-              if (!_isRecording && !_isProcessing)
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _processRecording,
-                    icon: const Icon(Icons.check),
-                    label: const Text('Transcrire et valider'),
-                  ),
-                ),
-
-              const SizedBox(height: 16),
-
-              // Retry Button
-              if (!_isRecording && !_isProcessing)
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      setState(() => _filePath = null);
-                    },
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Nouvel enregistrement'),
-                  ),
-                ),
-
-              const SizedBox(height: 24),
-
-              // Instructions
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      'Instructions:',
-                      style: TextStyle(fontWeight: FontWeight.bold),
+                // Recording Duration
+                if (_isRecording)
+                  Text(
+                    _formatDuration(_recordingDuration),
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red,
                     ),
-                    SizedBox(height: 8),
-                    Text('1. Appuyez sur le micro pour commencer'),
-                    Text('2. Dictez l\'ordonnance clairement'),
-                    Text('3. Appuyez à nouveau pour arrêter'),
-                    Text('4. Appuyez sur "Transcrire et valider"'),
-                  ],
+                  ),
+                const SizedBox(height: 32),
+
+                // Record Button
+                if (!_isProcessing)
+                  FloatingActionButton.large(
+                    onPressed: _isRecording ? _stopRecording : _startRecording,
+                    backgroundColor: _isRecording ? Colors.red : Colors.blue,
+                    child: Icon(
+                      _isRecording ? Icons.stop : Icons.mic,
+                      size: 32,
+                    ),
+                  )
+                else
+                  const SizedBox(
+                    width: 80,
+                    height: 80,
+                    child: CircularProgressIndicator(strokeWidth: 4),
+                  ),
+
+                const SizedBox(height: 32),
+
+                // Transcribe Button - Show when recording is stopped and not processing
+                if (!_isRecording && !_isProcessing)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _processRecording,
+                      icon: const Icon(Icons.check),
+                      label: const Text('Transcrire et valider'),
+                    ),
+                  ),
+
+                const SizedBox(height: 16),
+
+                // Retry Button
+                if (!_isRecording && !_isProcessing)
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        setState(() => _filePath = null);
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Nouvel enregistrement'),
+                    ),
+                  ),
+
+                const SizedBox(height: 24),
+
+                // Instructions
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'Instructions:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 8),
+                      Text('1. Appuyez sur le micro pour commencer'),
+                      Text('2. Dictez l\'ordonnance clairement'),
+                      Text('3. Appuyez à nouveau pour arrêter'),
+                      Text('4. Appuyez sur "Transcrire et valider"'),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
