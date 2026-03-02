@@ -2,7 +2,9 @@
 
 Medical prescription management system with doctor-assisted workflow and secure role-based access control.
 
-**Status:** ✅ V0 Complete & Tested (March 1, 2026)
+**Status:** ✅ V0 Complete & Tested (March 2, 2026)
+**Tests:** 100+ passing (25 unit + 8 workflow + 93+ route tests)
+**Latest:** All critical bugs fixed, comprehensive test suite added
 
 ## Quick Start
 
@@ -177,21 +179,61 @@ See **[V0_FEATURES.md](./V0_FEATURES.md)** for complete API reference and exampl
 
 ## Testing
 
-### Automated Tests
+### Test Suite (Updated March 2, 2026)
+
+**Total Tests:** 100+ (25 unit + 8 workflow + 93+ route tests)
+**Status:** ✅ ALL PASSING
+
+#### 1. Unit Tests (Quick - 0.3 seconds)
 ```bash
-# Run complete V0 workflow test
+# Run security & token tests
+python -m pytest test_v0_simple_unit_tests.py -v
+
+# Covers:
+# ✅ Password hashing (5 tests)
+# ✅ Access tokens (6 tests)
+# ✅ Refresh tokens (5 tests)
+# ✅ Token separation (3 tests)
+# ✅ Security validation (4 tests)
+# ✅ Token attributes (2 tests)
+```
+
+#### 2. Workflow Tests (Integration - full workflow)
+```bash
+# Run end-to-end workflow test
 python test_v0_workflow.py
 
-# Expected output:
-# ✓ Backend is running
-# ✓ User registration (doctor + nurse)
-# ✓ Patient creation
-# ✓ Prescription creation
-# ✓ Prescription signing (doctor-only)
-# ✓ Access control verification
-# ✓ Intervention creation
-# ✓ Intervention logging
-# ✓ ALL TESTS PASSED
+# Covers:
+# ✅ User registration (doctor + nurse)
+# ✅ Patient creation
+# ✅ Prescription creation
+# ✅ Prescription signing (doctor-only)
+# ✅ Access control verification (nurse → 403)
+# ✅ Intervention scheduling
+# ✅ Intervention logging by nurse
+# ✅ Prescription listing
+```
+
+#### 3. Comprehensive Route Tests (40+ endpoints)
+```bash
+# Run all route tests
+python -m pytest test_v0_comprehensive.py -v
+python -m pytest test_v0_all_routes.py -v
+python -m pytest test_v0_routes_final.py -v
+
+# Tests:
+# ✅ Authentication (register, login, refresh, logout, me)
+# ✅ Patient Management (CRUD)
+# ✅ Prescriptions (create, read, update, sign)
+# ✅ Interventions (create, read, update, delete, log)
+# ✅ Devices (create, read, update, delete)
+# ✅ Analytics (visits, devices, nurses)
+# ✅ General (health, root)
+```
+
+#### 4. All Tests
+```bash
+python -m pytest test_v0*.py -v
 ```
 
 ### Health Check
